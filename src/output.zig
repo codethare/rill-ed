@@ -91,6 +91,7 @@ fn outputListener(
                 if (active_count == 0) {
                     wm.focused_output_idx = null;
                     wm.previous_workspace = null;
+                    wm.last_focused_window = null;
                 } else if (wm.focused_output_idx) |foi| {
                     if (foi >= active_count) {
                         wm.focused_output_idx = active_count - 1;
