@@ -58,6 +58,7 @@ pub fn main(init: std.process.Init) !void {
         .config = cfg,
         .xkb_binding_list = .empty,
         .pointer_binding_list = .empty,
+        .detached_workspaces = null,
         .status = .none,
     };
     defer wm.deinit();
@@ -164,9 +165,7 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
         .layout => {
             layout.apply(
                 allocator,
-                &wm.output_list,
-                &wm.focused_output_idx,
-                wm.getConfig(),
+                wm,
                 river_seat,
             );
             wm.status = .{

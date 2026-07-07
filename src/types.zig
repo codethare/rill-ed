@@ -23,7 +23,7 @@ pub const WindowManager = struct {
     focused_output_idx: ?usize,
     previous_workspace: ?struct { output_idx: usize, workspace_idx: usize },
     status: Status,
-    config: ?*Config,
+    config: *Config,
     xkb_binding_list: std.ArrayList(struct {
         river_xkb_binding: *river.XkbBindingV1,
         action: KeybindingAction,
@@ -32,17 +32,26 @@ pub const WindowManager = struct {
         river_pointer_binding: *river.PointerBindingV1,
         action: PointerAction,
     }),
+    /// Workspaces saved when the last output is removed. River keeps the
+    /// underlying river_window_v1 proxies alive, so we restore these windows
+    /// when a replacement output appears (e.g. TTY switch-back).
+    detached_workspaces: ?[10]Workspace,
 
     pub fn getConfig(self: *WindowManager) Config {
-        return if(self.config) |cfg| cfg.* else .{};
+        return self.config.*;
     }
 
     pub fn deinit(self: *WindowManager) void {
-        if (self.config) |cfg|
-            std.zon.parse.free(self.allocator, cfg);
+        std.zon.parse.free(self.allocator, self.config);
 
         self.xkb_binding_list.deinit(self.allocator);
         self.pointer_binding_list.deinit(self.allocator);
+
+        if (self.detached_workspaces) |*detached| {
+            for (detached) |*workspace| {
+                workspace.window_list.deinit(self.allocator);
+            }
+        }
 
         for (self.output_list.items) |*output| {
             for (&output.workspace_list) |*workspace| {
@@ -67,10 +76,13 @@ pub const Window = struct {
     finish: ?Rectangle,
 };
 
+pub const Layout = enum { scroller, floating };
+
 pub const Workspace = struct {
     window_list: std.ArrayList(Window) = .empty,
     focused_window_idx: ?usize = null,
     is_floating: bool = false,
+    layout: Layout = .scroller,
 };
 
 pub const Output = struct {
@@ -150,15 +162,11 @@ const Keybinding = struct {
     action: KeybindingAction,
 };
 
-
-
 const PointerBinding = struct {
     button: Button,
     modifiers: river.SeatV1.Modifiers,
     action: PointerAction,
 };
-
-
 
 pub const default_keybindings = [_]Keybinding{
     .{ .key = "q", .modifiers = .{ .mod4 = true }, .action = .close_window },

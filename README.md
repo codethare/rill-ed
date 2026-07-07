@@ -1,14 +1,15 @@
 # Rill
-A minimalist scrolling window manager for [river](https://isaacfreund.com/software/river/), implementing the [river-window-management-v1](https://isaacfreund.com/docs/wayland/river-window-management-v1/) protocol
+A minimalist scrolling window manager for [river](https://isaacfreund.com/software/river/), implementing the [river-window-management-v1](https://isaacfreund.com/docs/wayland/river-window-management-v1/) protocol. Inspired by [kwm](https://github.com/kewuaa/kwm).
 
 ## Features
-* Scrolling layout
-* Floating layout
-* Workspaces
-* Animations
+* Per-workspace layout (scrolling or floating)
+* Floating windows center on screen; drag with mouse to reposition
+* Workspaces (10 per output)
+* Smooth animations (configurable duration, zero to disable)
 * Live-reloading config
-* Multi-output
+* Multi-output with window migration
 * TTY switch resilience — preserves windows and focus when switching VTs
+* Config preprocessing (`// @if(hostname=...)`, `// @include(file)` — directives pass through as ZON comments)
 
 <video src="https://pub-da8894d425e3482384b5adec2dcc2361.r2.dev/recording.mp4" controls> </video>
 
@@ -82,4 +83,24 @@ the same as they do under other window managers.
 * xkbcommon
 ```sh
 zig build --release=safe
+```
+
+### Source Layout
+```
+src/
+  main.zig            event loop, manage cycle
+  types.zig           WindowManager, Output, Workspace, Config
+  actions.zig         KeybindingAction, PointerAction
+  config.zig          ZON config loader, reload, preprocessing
+  layout.zig          layout coordinator
+  layout/
+    scroller.zig      scrolling column layout
+    floating.zig      floating window layout
+    common.zig        shared rectangle helpers
+  window.zig          window lifecycle
+  output.zig          output management
+  seat.zig            seat, pointer bindings
+  keybinding.zig      keyboard binding setup and dispatch
+  animation.zig       frame interpolation
+  spawn.zig           process spawning
 ```

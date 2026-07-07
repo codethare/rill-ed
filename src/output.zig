@@ -24,6 +24,24 @@ pub fn add(
     try wm.output_list.append(allocator, output);
     wm.focused_output_idx = wm.output_list.items.len - 1;
     river_output.setListener(*types.WindowManager, outputListener, wm);
+
+    // If the previous output was removed without any surviving display (e.g. TTY
+    // switch-away), its workspaces were preserved. Restore them on the new output.
+    if (wm.detached_workspaces) |*detached| {
+        const restored = &wm.output_list.items[wm.focused_output_idx.?];
+        restored.workspace_list = detached.*;
+        wm.detached_workspaces = null;
+
+        for (&restored.workspace_list) |*workspace| {
+            for (workspace.window_list.items) |*window| {
+                window.start = null;
+                window.finish = null;
+            }
+        }
+
+        wm.status = .layout;
+        if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
+    }
 }
 
 fn getLayerShellOutput(
@@ -54,6 +72,8 @@ fn outputListener(
             .dimensions => |dimensions| {
                 output.rectangle.width = dimensions.width;
                 output.rectangle.height = dimensions.height;
+                layout.update(wm.output_list, wm.getConfig());
+                wm.status = .layout;
             },
             .position => |position| {
                 output.rectangle.x = position.x;

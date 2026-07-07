@@ -191,7 +191,19 @@ fn keybindingPressed(
             }
             continue :action_switch .move_window_right;
         },
-        .toggle_workspace_floating => workspace.is_floating = !workspace.is_floating,
+        .toggle_workspace_floating => {
+                    workspace.is_floating = !workspace.is_floating;
+                    workspace.layout = if (workspace.is_floating) .floating else .scroller;
+                    // Center all windows when entering floating mode
+                    if (workspace.is_floating) {
+                        for (workspace.window_list.items) |*window| {
+                            window.floating = layout.centerRectangle(
+                                output.non_exclusive,
+                                wm.getConfig(),
+                            );
+                        }
+                    }
+                },
         .focus_workspace_above => {
             if (workspace_idx == 0) return;
             output.focused_workspace_idx -= 1;
@@ -466,13 +478,10 @@ fn keybindingPressed(
             return;
         },
         .reload_config => {
-            const old_config = wm.config;
-            const new_config = config.load(allocator, io, environ_map) orelse return;
-
-            wm.config = new_config;
-
-            if (old_config) |cfg|
-                std.zon.parse.free(wm.allocator, cfg);
+            if (config.reload(allocator, io, environ_map, wm.config)) |_| {} else {
+                std.debug.print("Config reload failed — keeping current config\n", .{});
+                return;
+            }
 
             if (wm.getConfig().cursor) |cursor| {
                 wm.river_seat.?.setXcursorTheme(cursor.theme, cursor.size);

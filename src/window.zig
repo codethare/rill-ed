@@ -75,19 +75,24 @@ fn add(
     output: *types.Output,
     config: types.Config,
 ) !void {
+    const workspace = &output.workspace_list[output.focused_workspace_idx];
+    const initial_rect = if (workspace.layout == .floating)
+        layout.centerRectangle(output.non_exclusive, config)
+    else
+        layout.initialRectangle(output.non_exclusive, config);
+
     const window = types.Window{
         .river_window = river_window,
         .river_node = try river_window.getNode(),
         .proportion = config.default_window_width,
         .is_fullscreen = false,
         .is_closing = false,
-        .floating = layout.initialRectangle(output.non_exclusive, config),
-        .current = layout.initialRectangle(output.non_exclusive, config),
+        .floating = initial_rect,
+        .current = initial_rect,
         .start = null,
         .finish = null,
     };
 
-    const workspace = &output.workspace_list[output.focused_workspace_idx];
     var window_idx: usize = 0;
     if (workspace.focused_window_idx) |idx| window_idx = idx + 1;
     try workspace.window_list.insert(allocator, window_idx, window);
