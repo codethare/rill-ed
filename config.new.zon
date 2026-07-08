@@ -108,6 +108,14 @@
 
         .{ .key = "Return", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"footclient"} } },
         .{ .key = "t", .modifiers = .{ .mod1 = true, .ctrl = true }, .action = .{ .spawn = .{"alacritty"} } },
+        .{ .key = "Space", .modifiers = .{ .mod4 = true }, .action = .enter_overview },
+
+        .{ .key = "h", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_left },
+        .{ .key = "l", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_right },
+        .{ .key = "k", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_up },
+        .{ .key = "j", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_down },
+        .{ .key = "Return", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_select },
+        .{ .key = "Escape", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_cancel },
         .{ .key = "p", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/wmenu-run-color"} } },
 
         .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"footclient sh -c 'sleep 0.03 && lf'"} } },

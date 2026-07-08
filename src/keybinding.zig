@@ -8,6 +8,7 @@ const river = wayland.client.river;
 
 const config = @import("config.zig");
 const layout = @import("layout.zig");
+const overview = @import("overview.zig");
 const spawn = @import("spawn.zig");
 const types = @import("types.zig");
 
@@ -61,6 +62,15 @@ fn xkbBindingListener(
     wm: *types.WindowManager,
 ) void {
     if (wm.status == .pointer_action) return;
+
+    // During overview, intercept all key events for navigation.
+    if (wm.overview_state != null and event == .pressed) {
+        overviewKeyPressed(wm, xkb_binding) catch |err| {
+            std.debug.print("Overview key failed: {}\n", .{err});
+        };
+        return;
+    }
+
     for (wm.xkb_binding_list.items) |binding| {
         if (binding.river_xkb_binding != xkb_binding) continue;
         switch (event) {
@@ -491,6 +501,28 @@ fn keybindingPressed(
             wm.status = .setup_bindings;
             return;
         },
+        .enter_overview => {
+            overview.enter(allocator, wm) catch |err| {
+                std.debug.print("Failed to enter overview: {}\n", .{err});
+                return;
+            };
+            if (wm.overview_state != null) {
+                // layout already done by overview.enter, just request manage.
+                wm.river_window_manager.?.manageDirty();
+                return;
+            }
+        },
+        .overview_navigate_left,
+        .overview_navigate_right,
+        .overview_navigate_up,
+        .overview_navigate_down,
+        .overview_select,
+        .overview_cancel,
+        => {
+            // Only active during overview (intercepted in xkbBindingListener).
+            // No-op in normal mode.
+            return;
+        },
         .spawn => |command| {
             spawn.spawnDetached(allocator, command, environ_map);
             return;
@@ -520,4 +552,53 @@ fn moveWindowToWorkspace(
 
     try target_workspace.window_list.insert(allocator, target_window_idx, window);
     target_workspace.focused_window_idx = target_window_idx;
+}
+
+fn overviewKeyPressed(
+    wm: *types.WindowManager,
+    xkb_binding: *river.XkbBindingV1,
+) !void {
+    for (wm.xkb_binding_list.items) |binding| {
+        if (binding.river_xkb_binding != xkb_binding) continue;
+
+        switch (binding.action) {
+            .overview_navigate_left => {
+                overview.navigate(wm, .left);
+                wm.status = .overview;
+                wm.river_window_manager.?.manageDirty();
+                return;
+            },
+            .overview_navigate_right => {
+                overview.navigate(wm, .right);
+                wm.status = .overview;
+                wm.river_window_manager.?.manageDirty();
+                return;
+            },
+            .overview_navigate_up => {
+                overview.navigate(wm, .up);
+                wm.status = .overview;
+                wm.river_window_manager.?.manageDirty();
+                return;
+            },
+            .overview_navigate_down => {
+                overview.navigate(wm, .down);
+                wm.status = .overview;
+                wm.river_window_manager.?.manageDirty();
+                return;
+            },
+            .overview_select, .enter_overview => {
+                overview.select(wm.allocator, wm);
+                layout.update(wm.output_list, wm.getConfig());
+                wm.status = .layout;
+                return;
+            },
+            .overview_cancel, .exit => {
+                overview.cancel(wm.allocator, wm);
+                layout.update(wm.output_list, wm.getConfig());
+                wm.status = .layout;
+                return;
+            },
+            else => return,
+        }
+    }
 }

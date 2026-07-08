@@ -36,6 +36,7 @@ pub const WindowManager = struct {
     /// underlying river_window_v1 proxies alive, so we restore these windows
     /// when a replacement output appears (e.g. TTY switch-back).
     detached_workspaces: ?[10]Workspace,
+    overview_state: ?OverviewState = null,
 
     pub fn getConfig(self: *WindowManager) Config {
         return self.config.*;
@@ -106,9 +107,24 @@ pub const Status = union(enum) {
     layout: void,
     animation: i64,
     pointer_action: PointerAction,
+    overview: void,
     setup_bindings: void,
     exit: void,
     none: void,
+};
+
+pub const OverviewState = struct {
+    /// Maps each overview grid slot to its original (workspace_idx, window_idx).
+    origins: std.ArrayList(Origin),
+    highlighted: usize,
+    columns: usize,
+    output_idx: usize,
+    previous_workspace: ?struct { output_idx: usize, workspace_idx: usize },
+
+    pub const Origin = struct {
+        workspace_idx: usize,
+        window_idx: usize,
+    };
 };
 
 pub const Config = struct {
@@ -226,6 +242,14 @@ pub const default_keybindings = [_]Keybinding{
     .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .reload_config },
 
     .{ .key = "t", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = &[_][]const u8{"alacritty"} } },
+    .{ .key = "Space", .modifiers = .{ .mod4 = true }, .action = .enter_overview },
+
+    .{ .key = "h", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_left },
+    .{ .key = "l", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_right },
+    .{ .key = "k", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_up },
+    .{ .key = "j", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_down },
+    .{ .key = "Return", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_select },
+    .{ .key = "Escape", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_cancel },
 
     .{
         .key = "XF86AudioRaiseVolume",

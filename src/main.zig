@@ -10,6 +10,7 @@ const config = @import("config.zig");
 const keybinding = @import("keybinding.zig");
 const layout = @import("layout.zig");
 const output = @import("output.zig");
+const overview = @import("overview.zig");
 const seat = @import("seat.zig");
 const spawn = @import("spawn.zig");
 const types = @import("types.zig");
@@ -184,6 +185,12 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
                 start_time,
                 Io.Clock.awake.now(io).toMilliseconds(),
             );
+        },
+        .overview => {
+            overview.applyBorders(wm, river_seat);
+            wm.status = .{
+                .animation = Io.Clock.awake.now(io).toMilliseconds(),
+            };
         },
         .pointer_action => {
             const focused_output_idx = wm.focused_output_idx orelse return;

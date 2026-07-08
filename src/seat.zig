@@ -5,6 +5,7 @@ const wayland = @import("wayland");
 const river = wayland.client.river;
 
 const layout = @import("layout.zig");
+const overview = @import("overview.zig");
 const types = @import("types.zig");
 
 pub fn seatListener(
@@ -20,6 +21,21 @@ pub fn seatListener(
 
     switch (event) {
         .window_interaction => |interaction| {
+            // During overview, clicking a window selects it.
+            if (wm.overview_state) |*state| {
+                const ov_output = &wm.output_list.items[state.output_idx];
+                const ov_ws = &ov_output.workspace_list[0];
+                for (ov_ws.window_list.items, 0..) |w, idx| {
+                    if (w.river_window == interaction.window) {
+                        overview.selectIndex(wm.allocator, wm, idx);
+                        layout.update(wm.output_list, wm.getConfig());
+                        wm.status = .layout;
+                        return;
+                    }
+                }
+                return;
+            }
+
             if (interaction.window == window.river_window) return;
 
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
