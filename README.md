@@ -1,5 +1,9 @@
-# Rill
-A minimalist scrolling window manager for [river](https://isaacfreund.com/software/river/), implementing the [river-window-management-v1](https://isaacfreund.com/docs/wayland/river-window-management-v1/) protocol. Inspired by [kwm](https://github.com/kewuaa/kwm).
+# Rill Ed
+A minimalist scrolling window manager for [river](https://isaacfreund.com/software/river/),
+
+> **Note:** This project is an improved fork of the original [rill](https://codeberg.org/lzj15/rill) by [lzj15](https://codeberg.org/lzj15). It builds on top of the original work with enhancements and fixes.
+
+fork of [rill](https://codeberg.org/lzj15/rill), implementing the [river-window-management-v1](https://isaacfreund.com/docs/wayland/river-window-management-v1/) protocol. Inspired by [kwm](https://github.com/kewuaa/kwm).
 
 ## Features
 * Per-workspace layout (scrolling or floating)
