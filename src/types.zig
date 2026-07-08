@@ -71,6 +71,7 @@ pub const Window = struct {
     proportion: f32,
     is_fullscreen: bool,
     is_closing: bool,
+    title: ?[:0]const u8 = null,
     floating: Rectangle,
     current: Rectangle,
     start: ?Rectangle,
@@ -243,13 +244,6 @@ pub const default_keybindings = [_]Keybinding{
 
     .{ .key = "t", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = &[_][]const u8{"alacritty"} } },
     .{ .key = "Space", .modifiers = .{ .mod4 = true }, .action = .enter_overview },
-
-    .{ .key = "h", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_left },
-    .{ .key = "l", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_right },
-    .{ .key = "k", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_up },
-    .{ .key = "j", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_navigate_down },
-    .{ .key = "Return", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_select },
-    .{ .key = "Escape", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .overview_cancel },
 
     .{
         .key = "XF86AudioRaiseVolume",

@@ -29,6 +29,12 @@ pub fn enter(
     const target_ws = &output.workspace_list[0];
     for (&output.workspace_list, 0..) |*src_ws, ws_idx| {
         if (ws_idx == 0) {
+            for (src_ws.window_list.items) |*w| {
+                if (w.is_fullscreen) {
+                    w.is_fullscreen = false;
+                    w.river_window.exitFullscreen();
+                }
+            }
             for (src_ws.window_list.items, 0..) |_, win_idx| {
                 try origins.append(allocator, .{
                     .workspace_idx = 0,
@@ -128,47 +134,6 @@ pub fn cancel(
         wm.focused_output_idx = p.output_idx;
         wm.output_list.items[p.output_idx].focused_workspace_idx = p.workspace_idx;
     }
-}
-
-/// Move highlight in direction. Wraps around.
-pub fn navigate(wm: *types.WindowManager, direction: enum { left, right, up, down }) void {
-    if (wm.overview_state == null) return;
-    const state = &wm.overview_state.?;
-    const total = state.origins.items.len;
-    if (total == 0) return;
-    const cols = state.columns;
-    const rows = (total + cols - 1) / cols;
-    const row = state.highlighted / cols;
-    const col = state.highlighted % cols;
-
-    const new_idx = switch (direction) {
-        .left => if (col == 0) row * cols + cols - 1 else state.highlighted - 1,
-        .right => if (col == cols - 1 or state.highlighted + 1 >= total)
-            row * cols
-        else
-            state.highlighted + 1,
-        .up => if (row == 0)
-            (rows - 1) * cols + @min(col, total - (rows - 1) * cols - 1)
-        else blk: {
-            const new = state.highlighted -| cols;
-            break :blk if (new < total) new else state.highlighted;
-        },
-        .down => blk: {
-            const new = state.highlighted + cols;
-            break :blk if (new < total) new else col;
-        },
-    };
-
-    const clamped = @min(new_idx, total - 1);
-
-    if (clamped != state.highlighted) {
-        const output = &wm.output_list.items[state.output_idx];
-        const ws = &output.workspace_list[0];
-        std.mem.swap(types.Window, &ws.window_list.items[state.highlighted], &ws.window_list.items[clamped]);
-        std.mem.swap(types.OverviewState.Origin, &state.origins.items[state.highlighted], &state.origins.items[clamped]);
-    }
-
-    state.highlighted = clamped;
 }
 
 /// Select the window at the given index (from mouse click).

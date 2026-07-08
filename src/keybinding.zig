@@ -512,17 +512,6 @@ fn keybindingPressed(
                 return;
             }
         },
-        .overview_navigate_left,
-        .overview_navigate_right,
-        .overview_navigate_up,
-        .overview_navigate_down,
-        .overview_select,
-        .overview_cancel,
-        => {
-            // Only active during overview (intercepted in xkbBindingListener).
-            // No-op in normal mode.
-            return;
-        },
         .spawn => |command| {
             spawn.spawnDetached(allocator, command, environ_map);
             return;
@@ -562,37 +551,15 @@ fn overviewKeyPressed(
         if (binding.river_xkb_binding != xkb_binding) continue;
 
         switch (binding.action) {
-            .overview_navigate_left => {
-                overview.navigate(wm, .left);
-                wm.status = .overview;
-                wm.river_window_manager.?.manageDirty();
-                return;
-            },
-            .overview_navigate_right => {
-                overview.navigate(wm, .right);
-                wm.status = .overview;
-                wm.river_window_manager.?.manageDirty();
-                return;
-            },
-            .overview_navigate_up => {
-                overview.navigate(wm, .up);
-                wm.status = .overview;
-                wm.river_window_manager.?.manageDirty();
-                return;
-            },
-            .overview_navigate_down => {
-                overview.navigate(wm, .down);
-                wm.status = .overview;
-                wm.river_window_manager.?.manageDirty();
-                return;
-            },
-            .overview_select, .enter_overview => {
-                overview.select(wm.allocator, wm);
+            // Toggle: pressing enter_overview again exits overview.
+            .enter_overview => {
+                overview.cancel(wm.allocator, wm);
                 layout.update(wm.output_list, wm.getConfig());
                 wm.status = .layout;
                 return;
             },
-            .overview_cancel, .exit => {
+            // Escape / exit still cancels.
+            .exit => {
                 overview.cancel(wm.allocator, wm);
                 layout.update(wm.output_list, wm.getConfig());
                 wm.status = .layout;

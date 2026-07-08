@@ -156,7 +156,10 @@ pub fn layerShellSeatListener(
     wm: *types.WindowManager,
 ) void {
     switch (event) {
-        .focus_none => wm.status = .layout,
+        .focus_none => {
+            wm.status = .layout;
+            if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
+        },
         else => {},
     }
 }
