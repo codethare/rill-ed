@@ -169,9 +169,16 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
                 wm,
                 river_seat,
             );
-            wm.status = .{
-                .animation = Io.Clock.awake.now(io).toMilliseconds(),
-            };
+            if (wm.needs_refocus) {
+                // focusWindow may have been ignored during exclusive focus;
+                // stay in .layout so the next manage sequence retries focus.
+                wm.needs_refocus = false;
+                if (wm.river_window_manager) |wm_proto| wm_proto.manageDirty();
+            } else {
+                wm.status = .{
+                    .animation = Io.Clock.awake.now(io).toMilliseconds(),
+                };
+            }
         },
         .animation => |start_time| {
             const focused_output_idx = wm.focused_output_idx orelse {

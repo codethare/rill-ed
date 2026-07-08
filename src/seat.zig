@@ -157,6 +157,7 @@ pub fn layerShellSeatListener(
 ) void {
     switch (event) {
         .focus_none => {
+            wm.needs_refocus = true;
             wm.status = .layout;
             if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
         },

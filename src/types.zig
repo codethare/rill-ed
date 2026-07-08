@@ -37,6 +37,7 @@ pub const WindowManager = struct {
     /// when a replacement output appears (e.g. TTY switch-back).
     detached_workspaces: ?[10]Workspace,
     overview_state: ?OverviewState = null,
+    needs_refocus: bool = false,
 
     pub fn getConfig(self: *WindowManager) Config {
         return self.config.*;
