@@ -10,15 +10,16 @@ pub fn apply(
 ) void {
     const focused_window_idx = workspace.focused_window_idx orelse return;
     const focused_window = &workspace.window_list.items[focused_window_idx];
+    const window_count = workspace.window_list.items.len;
     var rectangle: types.Rectangle = undefined;
 
     const should_center = switch (config.center_focused_window) {
         .never => false,
         .always => true,
-        .single => workspace.window_list.items.len == 1,
+        .single => window_count == 1,
     };
 
-    focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center);
+    focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center, window_count);
     focused_window.finish = rectangle;
 
     // Unfocused windows to the right of focused
@@ -54,10 +55,14 @@ fn focusedWindowLayout(
     config: types.Config,
     y_offset: i32,
     should_center: bool,
+    window_count: usize,
 ) void {
     const non_exclusive = output.non_exclusive;
     const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
-    const width_with_gap: i32 = @trunc(base_width * window.proportion);
+    // ponytail: single window fills the usable width; keep stored proportion
+    // untouched so adding a second window restores the prior split sizes.
+    const proportion = if (window_count == 1) @as(f32, 1.0) else window.proportion;
+    const width_with_gap: i32 = @trunc(base_width * proportion);
 
     rectangle.* = .{
         .width = width_with_gap - config.horizontal_gap,
