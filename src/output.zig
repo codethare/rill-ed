@@ -92,16 +92,21 @@ fn outputListener(
                     wm.focused_output_idx = null;
                     wm.previous_workspace = null;
                 } else if (wm.focused_output_idx) |foi| {
-                    if (foi >= active_count) {
-                        wm.focused_output_idx = active_count - 1;
+                    if (foi == idx) {
+                        // pnytl: current focus was this removed output → first alive
+                        wm.focused_output_idx = null;
+                        for (wm.output_list.items, 0..) |o, i| {
+                            if (!o.is_removed) {
+                                wm.focused_output_idx = i;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 const previous_workspace = wm.previous_workspace orelse return;
                 if (previous_workspace.output_idx == idx) {
                     wm.previous_workspace = null;
-                } else if (previous_workspace.output_idx >= active_count and active_count > 0) {
-                    wm.previous_workspace.?.output_idx = active_count - 1;
                 }
             },
             else => {},

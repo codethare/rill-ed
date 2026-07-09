@@ -169,7 +169,7 @@ fn restoreWindows(
         const dst = &output.workspace_list[origin.workspace_idx];
         const insert_at = @min(origin.window_idx, dst.window_list.items.len);
         dst.window_list.insert(allocator, insert_at, moved_window) catch {
-            dst.window_list.append(allocator, moved_window) catch {};
+            moved_window.river_window.destroy();
         };
         if (dst.focused_window_idx == null) {
             dst.focused_window_idx = insert_at;

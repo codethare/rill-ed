@@ -329,6 +329,7 @@ fn keybindingPressed(
         },
         .focus_output_left => {
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.x + target_output.rectangle.width !=
                     output.rectangle.x) continue;
 
@@ -341,6 +342,7 @@ fn keybindingPressed(
         },
         .focus_output_right => {
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.x !=
                     output.rectangle.x + output.rectangle.width) continue;
 
@@ -353,6 +355,7 @@ fn keybindingPressed(
         },
         .focus_output_above => {
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.y + target_output.rectangle.height !=
                     output.rectangle.y) continue;
 
@@ -365,6 +368,7 @@ fn keybindingPressed(
         },
         .focus_output_below => {
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.y !=
                     output.rectangle.y + output.rectangle.height) continue;
 
@@ -378,6 +382,7 @@ fn keybindingPressed(
         .move_window_to_output_left => {
             const window_idx = workspace.focused_window_idx orelse return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.x + target_output.rectangle.width !=
                     output.rectangle.x) continue;
 
@@ -405,6 +410,7 @@ fn keybindingPressed(
         .move_window_to_output_right => {
             const window_idx = workspace.focused_window_idx orelse return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.x !=
                     output.rectangle.x + output.rectangle.width) continue;
 
@@ -432,6 +438,7 @@ fn keybindingPressed(
         .move_window_to_output_above => {
             const window_idx = workspace.focused_window_idx orelse return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.y + target_output.rectangle.height !=
                     output.rectangle.y) continue;
 
@@ -459,6 +466,7 @@ fn keybindingPressed(
         .move_window_to_output_below => {
             const window_idx = workspace.focused_window_idx orelse return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
+                if (target_output.is_removed) continue;
                 if (target_output.rectangle.y !=
                     output.rectangle.y + output.rectangle.height) continue;
 

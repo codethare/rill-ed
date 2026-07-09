@@ -51,11 +51,9 @@ pub fn windowListener(
                         river_window.destroy();
                     },
                     .fullscreen_requested => {
-                        if (wm.status != .none) return;
                         window.is_fullscreen = true;
                     },
                     .exit_fullscreen_requested => {
-                        if (wm.status != .none) return;
                         window.is_fullscreen = false;
                     },
                     .title => |t| {

@@ -60,7 +60,7 @@ pub fn apply(
                     const offset = target_ws.window_list.items.len;
                     for (src_ws.window_list.items) |window| {
                         if (window.is_fullscreen) window.river_window.exitFullscreen();
-                        target_ws.window_list.append(allocator, window) catch continue;
+                        target_ws.window_list.append(allocator, window) catch { window.river_window.destroy(); };
                     }
                     if (src_ws.focused_window_idx) |fwi| {
                         if (target_ws.focused_window_idx == null) {
@@ -75,7 +75,7 @@ pub fn apply(
                         const dst_ws = &detached.*[ws_idx];
                         const offset = dst_ws.window_list.items.len;
                         for (src_ws.window_list.items) |window| {
-                            dst_ws.window_list.append(allocator, window) catch continue;
+                            dst_ws.window_list.append(allocator, window) catch { window.river_window.destroy(); };
                         }
                         if (src_ws.focused_window_idx) |fwi| {
                             if (dst_ws.focused_window_idx == null) {
@@ -109,7 +109,7 @@ pub fn apply(
 
         for (output.workspace_list, 0..) |workspace, workspace_idx| {
             for (workspace.window_list.items, 0..) |window, window_idx| {
-                window.river_window.exitFullscreen();
+                if (window.is_fullscreen) window.river_window.exitFullscreen();
 
                 const unfocused_color = config.border.unfocused_color.toRiverColor();
                 window.river_window.setBorders(

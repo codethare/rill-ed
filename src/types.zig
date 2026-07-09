@@ -46,6 +46,8 @@ pub const WindowManager = struct {
     pub fn deinit(self: *WindowManager) void {
         std.zon.parse.free(self.allocator, self.config);
 
+        if (self.overview_state) |*state| state.origins.deinit(self.allocator);
+
         self.xkb_binding_list.deinit(self.allocator);
         self.pointer_binding_list.deinit(self.allocator);
 

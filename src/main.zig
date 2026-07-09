@@ -62,6 +62,9 @@ pub fn main(init: std.process.Init) !void {
         .detached_workspaces = null,
         .status = .none,
     };
+    // pnytl: layout.zig imports types.zig, so types can't import layout;
+    // free the global here. Registered before wm.deinit so LIFO runs it after.
+    defer layout.pending_windows.deinit(wm.allocator);
     defer wm.deinit();
 
     wm.registry.setListener(*types.WindowManager, registryListener, &wm);
@@ -205,12 +208,16 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
             seat.pointerAction(wm.output_list, focused_output_idx, wm.getConfig());
         },
         .setup_bindings => {
+            var bind_ok = true;
             keybinding.setupKeybindings(allocator, wm) catch |err| {
                 std.debug.print("Failed to setup keybindings: {}\n", .{err});
+                bind_ok = false;
             };
             seat.setupPointerBindings(allocator, wm) catch |err| {
                 std.debug.print("Failed to setup pointer bindings: {}\n", .{err});
+                bind_ok = false;
             };
+            if (!bind_ok) return;
 
             wm.status = .layout;
             wm.river_window_manager.?.manageDirty();
