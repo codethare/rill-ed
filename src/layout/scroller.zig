@@ -19,37 +19,62 @@ pub fn apply(
     const focused_window_idx = workspace.focused_window_idx orelse return;
     const window_count = workspace.window_list.items.len;
 
-    // Find anchor: focused if not floating, else first non-floating
-    const anchor_idx: ?usize = if (!workspace.window_list.items[focused_window_idx].is_floating)
-        focused_window_idx
-    else blk: {
-        for (workspace.window_list.items, 0..) |*w, i| {
-            if (!w.is_floating) break :blk i;
-        }
-        break :blk null;
-    };
-    if (anchor_idx == null) return; // all windows floating
-
-    var rectangle: types.Rectangle = undefined;
-
     const should_center = switch (config.center_focused_window) {
         .never => false,
         .always => true,
         .single => window_count == 1,
     };
 
-    const anchor = &workspace.window_list.items[anchor_idx.?];
-    focusedWindowLayout(anchor, &rectangle, output, config, y_offset, should_center, window_count);
-    anchor.finish = rectangle;
+    var rectangle: types.Rectangle = undefined;
 
-    // Place remaining non-floating windows in scroll order: anchor+1..end, then 0..anchor-1
-    var i: usize = (anchor_idx.? + 1) % window_count;
-    while (i != anchor_idx.?) : (i = (i + 1) % window_count) {
-        const window = &workspace.window_list.items[i];
-        if (window.is_floating) continue;
+    const focused_is_floating = workspace.window_list.items[focused_window_idx].is_floating;
+    if (!focused_is_floating) {
+        const focused_window = &workspace.window_list.items[focused_window_idx];
+        focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center, window_count);
+        focused_window.finish = rectangle;
+
+        // Unfocused windows to the right of focused
         rectangle.x += rectangle.width + config.horizontal_gap;
-        unfocusedWindowLayout(window, &rectangle, output, config, y_offset);
-        window.finish = rectangle;
+        for (workspace.window_list.items[focused_window_idx + 1 ..]) |*window| {
+            if (window.is_floating) continue;
+            unfocusedWindowLayout(window, &rectangle, output, config, y_offset);
+            window.finish = rectangle;
+            rectangle.x += rectangle.width + config.horizontal_gap;
+        }
+
+        // Unfocused windows to the left of focused
+        rectangle.x = focused_window.finish.?.x;
+        var window_idx = focused_window_idx;
+        while (window_idx > 0) {
+            window_idx -= 1;
+            const window = &workspace.window_list.items[window_idx];
+            if (window.is_floating) continue;
+            unfocusedWindowLayout(window, &rectangle, output, config, y_offset);
+            rectangle.x -= config.horizontal_gap + rectangle.width;
+            window.finish = rectangle;
+        }
+    } else {
+        // Focused window is floating: tile non-floating windows from the first one.
+        const anchor_idx: ?usize = blk: {
+            for (workspace.window_list.items, 0..) |*w, i| {
+                if (!w.is_floating) break :blk i;
+            }
+            break :blk null;
+        };
+        if (anchor_idx == null) return;
+
+        const anchor = &workspace.window_list.items[anchor_idx.?];
+        focusedWindowLayout(anchor, &rectangle, output, config, y_offset, should_center, window_count);
+        anchor.finish = rectangle;
+
+        var i: usize = (anchor_idx.? + 1) % window_count;
+        while (i != anchor_idx.?) : (i = (i + 1) % window_count) {
+            const window = &workspace.window_list.items[i];
+            if (window.is_floating) continue;
+            rectangle.x += rectangle.width + config.horizontal_gap;
+            unfocusedWindowLayout(window, &rectangle, output, config, y_offset);
+            window.finish = rectangle;
+        }
     }
 
     if (!should_center) snapToEdge(
