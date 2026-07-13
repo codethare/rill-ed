@@ -73,6 +73,7 @@ pub const Window = struct {
     river_node: *river.NodeV1,
     proportion: f32,
     is_fullscreen: bool,
+    is_floating: bool = false,
     is_closing: bool,
     title: ?[:0]const u8 = null,
     floating: Rectangle,

@@ -91,6 +91,7 @@ fn add(
         .river_node = try river_window.getNode(),
         .proportion = config.default_window_width,
         .is_fullscreen = false,
+        .is_floating = false,
         .is_closing = false,
         .floating = initial_rect,
         .current = initial_rect,

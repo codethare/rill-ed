@@ -202,16 +202,15 @@ fn keybindingPressed(
             continue :action_switch .move_window_right;
         },
         .toggle_workspace_floating => {
-                    workspace.is_floating = !workspace.is_floating;
-                    workspace.layout = if (workspace.is_floating) .floating else .scroller;
-                    // Center all windows when entering floating mode
-                    if (workspace.is_floating) {
-                        for (workspace.window_list.items) |*window| {
-                            window.floating = layout.centerRectangle(
-                                output.non_exclusive,
-                                wm.getConfig(),
-                            );
-                        }
+                    const window_idx = workspace.focused_window_idx orelse return;
+                    const window = &workspace.window_list.items[window_idx];
+                    window.is_floating = !window.is_floating;
+                    if (window.is_floating) {
+                        window.floating = layout.centerRectangle(
+                            output.non_exclusive,
+                            wm.getConfig(),
+                        );
+                        window.current = window.floating;
                     }
                 },
         .focus_workspace_above => {

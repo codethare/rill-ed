@@ -109,7 +109,12 @@ pub fn apply(
 
         for (output.workspace_list, 0..) |workspace, workspace_idx| {
             for (workspace.window_list.items, 0..) |window, window_idx| {
-                if (window.is_fullscreen) window.river_window.exitFullscreen();
+                const was_fullscreen = window.start != null and
+                    window.start.?.x == output.rectangle.x and
+                    window.start.?.y == output.rectangle.y and
+                    window.start.?.width == output.rectangle.width and
+                    window.start.?.height == output.rectangle.height;
+                if (was_fullscreen) window.river_window.exitFullscreen();
 
                 const unfocused_color = config.border.unfocused_color.toRiverColor();
                 window.river_window.setBorders(

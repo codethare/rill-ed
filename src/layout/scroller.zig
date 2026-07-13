@@ -8,9 +8,28 @@ pub fn apply(
     config: types.Config,
     y_offset: i32,
 ) void {
+    for (workspace.window_list.items) |*window| {
+        if (window.is_floating) {
+            window.finish = window.floating;
+            window.finish.?.y += y_offset;
+            window.start = window.current;
+        }
+    }
+
     const focused_window_idx = workspace.focused_window_idx orelse return;
-    const focused_window = &workspace.window_list.items[focused_window_idx];
     const window_count = workspace.window_list.items.len;
+
+    // Find anchor: focused if not floating, else first non-floating
+    const anchor_idx: ?usize = if (!workspace.window_list.items[focused_window_idx].is_floating)
+        focused_window_idx
+    else blk: {
+        for (workspace.window_list.items, 0..) |*w, i| {
+            if (!w.is_floating) break :blk i;
+        }
+        break :blk null;
+    };
+    if (anchor_idx == null) return; // all windows floating
+
     var rectangle: types.Rectangle = undefined;
 
     const should_center = switch (config.center_focused_window) {
@@ -19,25 +38,17 @@ pub fn apply(
         .single => window_count == 1,
     };
 
-    focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center, window_count);
-    focused_window.finish = rectangle;
+    const anchor = &workspace.window_list.items[anchor_idx.?];
+    focusedWindowLayout(anchor, &rectangle, output, config, y_offset, should_center, window_count);
+    anchor.finish = rectangle;
 
-    // Unfocused windows to the right of focused
-    rectangle.x += rectangle.width + config.horizontal_gap;
-    for (workspace.window_list.items[focused_window_idx + 1 ..]) |*window| {
-        unfocusedWindowLayout(window, &rectangle, output, config, y_offset);
-        window.finish = rectangle;
+    // Place remaining non-floating windows in scroll order: anchor+1..end, then 0..anchor-1
+    var i: usize = (anchor_idx.? + 1) % window_count;
+    while (i != anchor_idx.?) : (i = (i + 1) % window_count) {
+        const window = &workspace.window_list.items[i];
+        if (window.is_floating) continue;
         rectangle.x += rectangle.width + config.horizontal_gap;
-    }
-
-    // Unfocused windows to the left of focused
-    rectangle.x = focused_window.finish.?.x;
-    var window_idx = focused_window_idx;
-    while (window_idx > 0) {
-        window_idx -= 1;
-        const window = &workspace.window_list.items[window_idx];
         unfocusedWindowLayout(window, &rectangle, output, config, y_offset);
-        rectangle.x -= config.horizontal_gap + rectangle.width;
         window.finish = rectangle;
     }
 
@@ -120,20 +131,41 @@ fn snapToEdge(
     gap: i32,
 ) void {
     if (window_list.items.len == 0) return;
+
+    // Find first and last non-floating windows for head/tail
+    var head_window: ?*types.Window = null;
+    for (window_list.items) |*window| {
+        if (!window.is_floating) {
+            head_window = window;
+            break;
+        }
+    }
+    const head = head_window orelse return;
+    const head_finish = head.finish orelse return;
+
+    var tail_window: ?*types.Window = null;
+    var idx: usize = window_list.items.len;
+    while (idx > 0) {
+        idx -= 1;
+        if (!window_list.items[idx].is_floating) {
+            tail_window = &window_list.items[idx];
+            break;
+        }
+    }
+    const tail = tail_window orelse return;
+    const tail_finish = tail.finish orelse return;
+
     var head_distance: ?i32 = null;
-    const head_finish = window_list.items[0].finish orelse return;
-    const head = head_finish.x;
     const left = non_exclusive.x + gap;
-    if (head > left) head_distance = head - left;
+    if (head_finish.x > left) head_distance = head_finish.x - left;
 
     var tail_distance: ?i32 = null;
-    const tail_window = window_list.items[window_list.items.len - 1];
-    const tail_finish = tail_window.finish orelse return;
-    const tail = tail_finish.x + tail_finish.width;
     const right = non_exclusive.x + non_exclusive.width - gap;
-    if (tail < right) tail_distance = @min(right - tail, left - head);
+    const tail_end = tail_finish.x + tail_finish.width;
+    if (tail_end < right) tail_distance = @min(right - tail_end, left - head_finish.x);
 
     for (window_list.items) |*window| {
+        if (window.is_floating) continue;
         const x = &window.finish.?.x;
         if (head_distance) |distance| {
             x.* -= distance;
