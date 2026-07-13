@@ -135,10 +135,10 @@ fn pointerBindingListener(
                 const output_idx = wm.focused_output_idx orelse return;
                 const output = &wm.output_list.items[output_idx];
                 const workspace = output.workspace_list[output.focused_workspace_idx];
-                if (!workspace.is_floating) return;
 
                 const window_idx = workspace.focused_window_idx orelse return;
                 const window = &workspace.window_list.items[window_idx];
+                if (!window.is_floating) return;
                 if (window.is_fullscreen) return;
                 window.start = window.current;
 

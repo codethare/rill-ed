@@ -1,4 +1,4 @@
-# Rill Ed
+# Rill-Ed
 A minimalist scrolling window manager for [river](https://isaacfreund.com/software/river/),
 
 > **Note:** This project is an improved fork of the original [rill](https://codeberg.org/lzj15/rill) by [lzj15](https://codeberg.org/lzj15). It builds on top of the original work with enhancements and fixes.
