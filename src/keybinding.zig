@@ -98,55 +98,51 @@ fn keybindingPressed(
     wm: *types.WindowManager,
     environ_map: std.process.Environ.Map,
 ) !void {
-    const output_idx = wm.focused_output_idx orelse return;
-    const output = &wm.output_list.items[output_idx];
-    const workspace_idx = output.focused_workspace_idx;
-    const workspace = &output.workspace_list[workspace_idx];
+    const ws = wm.currentWorkspace() orelse return;
+    const output = ws.output;
+    const workspace = ws.workspace;
 
     action_switch: switch (action) {
         .close_window => {
-            const window_idx = workspace.focused_window_idx orelse return;
-            const window = &workspace.window_list.items[window_idx];
+            const window = ws.focusedWindow() orelse return;
             window.is_closing = true;
         },
         .toggle_fullscreen => {
-            const window_idx = workspace.focused_window_idx orelse return;
-            const window = &workspace.window_list.items[window_idx];
+            const window = ws.focusedWindow() orelse return;
             window.is_fullscreen = !window.is_fullscreen;
         },
         .toggle_maximize_column => {
             if (workspace.is_floating) return;
-            const window_idx = workspace.focused_window_idx orelse return;
-            var window = &workspace.window_list.items[window_idx];
+            const window = ws.focusedWindow() orelse return;
             window.proportion = if (window.proportion == 1.0) 0.5 else 1.0;
         },
         .adjust_window_width => |increment| {
             if (workspace.is_floating) return;
-            const window_idx = workspace.focused_window_idx orelse return;
-            var window = &workspace.window_list.items[window_idx];
+            const window = ws.focusedWindow() orelse return;
             if (window.is_fullscreen) return;
 
             const gap = wm.getConfig().horizontal_gap;
             const base_width: f32 = @floatFromInt(output.non_exclusive.width - gap);
             const width_with_gap: i32 = @trunc(base_width * (window.proportion + increment));
-            if (width_with_gap - gap < 2 * wm.getConfig().border.width) return;
+            if (width_with_gap - gap < wm.getConfig().border.width) return;
 
             window.proportion += increment;
         },
         .set_window_width => |proportion| {
             if (workspace.is_floating) return;
-            const window_idx = workspace.focused_window_idx orelse return;
-            var window = &workspace.window_list.items[window_idx];
+            const window = ws.focusedWindow() orelse return;
             window.proportion = proportion;
         },
         .focus_window_left => {
             if (workspace.is_floating) return;
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == 0) return;
             workspace.focused_window_idx = window_idx - 1;
         },
         .focus_window_or_output_left => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (workspace.is_floating or window_idx == 0) {
                 continue :action_switch .focus_output_left;
             }
@@ -155,11 +151,13 @@ fn keybindingPressed(
         .focus_window_right => {
             if (workspace.is_floating) return;
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == workspace.window_list.items.len - 1) return;
             workspace.focused_window_idx = window_idx + 1;
         },
         .focus_window_or_output_right => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (workspace.is_floating or window_idx == workspace.window_list.items.len - 1) {
                 continue :action_switch .focus_output_right;
             }
@@ -168,6 +166,7 @@ fn keybindingPressed(
         .move_window_left => {
             if (workspace.is_floating) return;
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == 0) return;
             std.mem.swap(
                 types.Window,
@@ -179,6 +178,7 @@ fn keybindingPressed(
         .move_window_right => {
             if (workspace.is_floating) return;
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == workspace.window_list.items.len - 1) return;
             std.mem.swap(
                 types.Window,
@@ -189,6 +189,7 @@ fn keybindingPressed(
         },
         .move_window_left_or_to_output_left => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == 0) {
                 continue :action_switch .move_window_to_output_left;
             }
@@ -196,14 +197,14 @@ fn keybindingPressed(
         },
         .move_window_right_or_to_output_right => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == workspace.window_list.items.len - 1) {
                 continue :action_switch .move_window_to_output_right;
             }
             continue :action_switch .move_window_right;
         },
         .toggle_workspace_floating => {
-            const window_idx = workspace.focused_window_idx orelse return;
-            const window = &workspace.window_list.items[window_idx];
+            const window = ws.focusedWindow() orelse return;
             window.is_floating = !window.is_floating;
             if (window.is_floating) {
                 window.floating = layout.centerRectangle(
@@ -214,29 +215,29 @@ fn keybindingPressed(
             }
         },
         .focus_workspace_above => {
-            if (workspace_idx == 0) return;
+            if (ws.workspace_idx == 0) return;
             output.focused_workspace_idx -= 1;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .focus_workspace_below => {
-            if (workspace_idx == 9) return;
+            if (ws.workspace_idx == 9) return;
             output.focused_workspace_idx += 1;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .focus_workspace_or_output_above => {
-            if (workspace_idx == 0) {
+            if (ws.workspace_idx == 0) {
                 continue :action_switch .focus_output_above;
             }
             continue :action_switch .focus_workspace_above;
         },
         .focus_workspace_or_output_below => {
-            if (workspace_idx == 9) {
+            if (ws.workspace_idx == 9) {
                 continue :action_switch .focus_output_below;
             }
             continue :action_switch .focus_workspace_below;
@@ -247,23 +248,24 @@ fn keybindingPressed(
             const target_output = &wm.output_list.items[previous.output_idx];
             target_output.focused_workspace_idx = previous.workspace_idx;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .focus_workspace_number => |number| {
             if (number == 0 or number > 10) return;
-            if (workspace_idx == number - 1) return;
+            if (ws.workspace_idx == number - 1) return;
             output.focused_workspace_idx = number - 1;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .move_window_to_workspace_above => {
-            if (workspace_idx == 0) return;
+            if (ws.workspace_idx == 0) return;
             const window_idx = workspace.focused_window_idx orelse return;
-            const target_workspace = &output.workspace_list[workspace_idx - 1];
+            if (window_idx >= workspace.window_list.items.len) return;
+            const target_workspace = &output.workspace_list[ws.workspace_idx - 1];
 
             try moveWindowToWorkspace(
                 allocator,
@@ -272,16 +274,17 @@ fn keybindingPressed(
                 target_workspace,
             );
 
-            output.focused_workspace_idx = workspace_idx - 1;
+            output.focused_workspace_idx = ws.workspace_idx - 1;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .move_window_to_workspace_below => {
-            if (workspace_idx == 9) return;
+            if (ws.workspace_idx == 9) return;
             const window_idx = workspace.focused_window_idx orelse return;
-            const target_workspace = &output.workspace_list[workspace_idx + 1];
+            if (window_idx >= workspace.window_list.items.len) return;
+            const target_workspace = &output.workspace_list[ws.workspace_idx + 1];
 
             try moveWindowToWorkspace(
                 allocator,
@@ -290,27 +293,28 @@ fn keybindingPressed(
                 target_workspace,
             );
 
-            output.focused_workspace_idx = workspace_idx + 1;
+            output.focused_workspace_idx = ws.workspace_idx + 1;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .move_window_to_workspace_or_output_above => {
-            if (workspace_idx == 0) {
+            if (ws.workspace_idx == 0) {
                 continue :action_switch .move_window_to_output_above;
             }
             continue :action_switch .move_window_to_workspace_above;
         },
         .move_window_to_workspace_or_output_below => {
-            if (workspace_idx == 9) {
+            if (ws.workspace_idx == 9) {
                 continue :action_switch .move_window_to_output_below;
             }
             continue :action_switch .move_window_to_workspace_below;
         },
         .move_window_to_workspace_number => |number| {
-            if (number == 0 or number > 10 or number - 1 == workspace_idx) return;
+            if (number == 0 or number > 10 or number - 1 == ws.workspace_idx) return;
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             const target_workspace = &output.workspace_list[number - 1];
 
             try moveWindowToWorkspace(
@@ -322,8 +326,8 @@ fn keybindingPressed(
 
             output.focused_workspace_idx = number - 1;
             wm.previous_workspace = .{
-                .output_idx = output_idx,
-                .workspace_idx = workspace_idx,
+                .output_idx = ws.output_idx,
+                .workspace_idx = ws.workspace_idx,
             };
         },
         .focus_output_left => {
@@ -334,8 +338,8 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
@@ -347,8 +351,8 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
@@ -360,8 +364,8 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
@@ -373,13 +377,14 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
         .move_window_to_output_left => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
                 if (target_output.is_removed) continue;
                 if (target_output.rectangle.x + target_output.rectangle.width !=
@@ -401,13 +406,14 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
         .move_window_to_output_right => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
                 if (target_output.is_removed) continue;
                 if (target_output.rectangle.x !=
@@ -429,13 +435,14 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
         .move_window_to_output_above => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
                 if (target_output.is_removed) continue;
                 if (target_output.rectangle.y + target_output.rectangle.height !=
@@ -457,13 +464,14 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },
         .move_window_to_output_below => {
             const window_idx = workspace.focused_window_idx orelse return;
+            if (window_idx >= workspace.window_list.items.len) return;
             for (wm.output_list.items, 0..) |*target_output, target_output_idx| {
                 if (target_output.is_removed) continue;
                 if (target_output.rectangle.y !=
@@ -485,8 +493,8 @@ fn keybindingPressed(
 
                 wm.focused_output_idx = target_output_idx;
                 wm.previous_workspace = .{
-                    .output_idx = output_idx,
-                    .workspace_idx = workspace_idx,
+                    .output_idx = ws.output_idx,
+                    .workspace_idx = ws.workspace_idx,
                 };
             }
         },

@@ -7,14 +7,25 @@ const types = @import("types.zig");
 const Location = enum { XDG_CONFIG_HOME, HOME };
 
 /// Load config from XDG_CONFIG_HOME, then HOME. Falls back to defaults (heap-allocated).
+/// Propagates parse errors so the caller can decide whether to exit loudly.
 /// Caller owns the returned pointer; free with std.zon.parse.free.
 pub fn load(
     allocator: Allocator,
     io: Io,
     environ_map: std.process.Environ.Map,
-) *types.Config {
-    if (find(allocator, io, .XDG_CONFIG_HOME, environ_map)) |config| return config else |err| std.debug.print("Failed to load config from $XDG_CONFIG_HOME: {}\n", .{err});
-    if (find(allocator, io, .HOME, environ_map)) |config| return config else |err| std.debug.print("Failed to load config from $HOME: {}\n", .{err});
+) !*types.Config {
+    if (find(allocator, io, .XDG_CONFIG_HOME, environ_map)) |config| {
+        return config;
+    } else |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    }
+    if (find(allocator, io, .HOME, environ_map)) |config| {
+        return config;
+    } else |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    }
 
     const default_cfg = allocator.create(types.Config) catch @panic("OOM");
     default_cfg.* = cloneConfig(allocator, .{}) catch @panic("OOM");

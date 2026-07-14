@@ -5,7 +5,6 @@ const river = wayland.client.river;
 
 const types = @import("types.zig");
 const layout = @import("layout.zig");
-const common = @import("layout/common.zig");
 
 /// Collect all windows from all workspaces on the current output into
 /// workspace 0 and arrange them in a grid.
@@ -233,12 +232,14 @@ pub fn applyBorders(
     const focused_color = config.border.focused_color.toRiverColor();
 
     const ws = &output.workspace_list[0];
+    types.updateBorderEdges(ws);
+
     for (ws.window_list.items, 0..) |*window, idx| {
         window.river_window.exitFullscreen();
 
         if (idx == state.highlighted) {
             window.river_window.setBorders(
-                common.edges,
+                window.border_edges,
                 config.border.width,
                 focused_color.r,
                 focused_color.g,
@@ -249,7 +250,7 @@ pub fn applyBorders(
             river_seat.focusWindow(window.river_window);
         } else {
             window.river_window.setBorders(
-                common.edges,
+                window.border_edges,
                 config.border.width,
                 unfocused_color.r,
                 unfocused_color.g,

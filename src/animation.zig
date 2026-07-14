@@ -100,14 +100,15 @@ fn placeWindow(
 ) void {
     var border_width = config.border.width;
     if (window.is_fullscreen) border_width = 0;
+    const geo = types.borderGeometry(window.border_edges, border_width);
 
     window.river_window.proposeDimensions(
-        @max(0, window.current.width - 2 * border_width),
-        @max(0, window.current.height - 2 * border_width),
+        @max(0, window.current.width - geo.dw),
+        @max(0, window.current.height - geo.dh),
     );
     window.river_node.setPosition(
-        window.current.x + border_width,
-        window.current.y + border_width,
+        window.current.x + geo.dx,
+        window.current.y + geo.dy,
     );
 
     const window_left = window.current.x;
@@ -148,8 +149,8 @@ fn placeWindow(
     }
 
     window.river_window.setClipBox(
-        clip_x - border_width,
-        clip_y - border_width,
+        clip_x - geo.dx,
+        clip_y - geo.dy,
         clip_width,
         clip_height,
     );

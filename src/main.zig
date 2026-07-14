@@ -42,7 +42,10 @@ pub fn main(init: std.process.Init) !void {
     const display = try wayland.client.wl.Display.connect(null);
     defer display.disconnect();
 
-    const cfg = config.load(init.gpa, init.io, init.environ_map.*);
+    const cfg = config.load(init.gpa, init.io, init.environ_map.*) catch |err| {
+        std.debug.print("Failed to load config: {}\n", .{err});
+        return error.ConfigLoadFailed;
+    };
 
     var wm = types.WindowManager{
         .allocator = init.gpa,

@@ -12,8 +12,6 @@ pub fn windowListener(
     event: river.WindowV1.Event,
     wm: *types.WindowManager,
 ) void {
-    const output_idx = wm.focused_output_idx orelse return;
-
     if (event == .closed) {
         for (layout.pending_windows.items, 0..) |pending, idx| {
             if (pending != river_window) continue;
@@ -24,11 +22,12 @@ pub fn windowListener(
     }
 
     if (event == .dimensions) {
+        const ws = wm.currentWorkspace() orelse return;
+
         for (layout.pending_windows.items, 0..) |window, idx| {
             if (window != river_window) continue;
 
-            const output = &wm.output_list.items[output_idx];
-            add(wm.allocator, window, output, wm.getConfig()) catch |err| {
+            add(wm.allocator, window, ws.output, wm.getConfig()) catch |err| {
                 std.debug.print("Failed to add window: {}\n", .{err});
                 return;
             };
