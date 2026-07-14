@@ -29,15 +29,19 @@ pub fn add(
     // switch-away), its workspaces were preserved. Restore them on the new output.
     if (wm.detached_workspaces) |*detached| {
         const restored = &wm.output_list.items[wm.focused_output_idx.?];
-        restored.workspace_list = detached.*;
-        wm.detached_workspaces = null;
-
-        for (&restored.workspace_list) |*workspace| {
-            for (workspace.window_list.items) |*window| {
-                window.start = null;
-                window.finish = null;
-            }
+        for (&restored.workspace_list, 0..) |*workspace, ws_idx| {
+            // Restore workspace-level state only; river will send fresh
+            // river_window_v1 proxies for the windows after TTY switch-back.
+            workspace.is_floating = detached[ws_idx].is_floating;
+            workspace.layout = detached[ws_idx].layout;
         }
+
+        // The detached window lists were emptied before detaching; just free
+        // any residual capacity.
+        for (detached) |*workspace| {
+            workspace.window_list.deinit(wm.allocator);
+        }
+        wm.detached_workspaces = null;
 
         wm.status = .layout;
         if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
@@ -89,8 +93,31 @@ fn outputListener(
                     if (!o.is_removed) active_count += 1;
                 }
                 if (active_count == 0) {
+                    // Last surviving output was removed. Detach workspace state
+                    // (without stale window objects) and remove it immediately so
+                    // a replacement output doesn't migrate dead proxies.
+                    if (wm.detached_workspaces) |*detached| {
+                        for (detached) |*workspace| {
+                            workspace.window_list.deinit(wm.allocator);
+                        }
+                    }
+                    for (&output.workspace_list) |*workspace| {
+                        for (workspace.window_list.items) |window| {
+                            window.river_window.destroy();
+                        }
+                        workspace.window_list.deinit(wm.allocator);
+                    }
+                    wm.detached_workspaces = output.workspace_list;
+
+                    if (output.river_layer_shell_output) |layer_shell_output| {
+                        layer_shell_output.destroy();
+                    }
+                    output.river_output.destroy();
+                    _ = wm.output_list.orderedRemove(idx);
+
                     wm.focused_output_idx = null;
                     wm.previous_workspace = null;
+                    return;
                 } else if (wm.focused_output_idx) |foi| {
                     if (foi == idx) {
                         // pnytl: current focus was this removed output → first alive

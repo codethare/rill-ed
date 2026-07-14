@@ -202,17 +202,17 @@ fn keybindingPressed(
             continue :action_switch .move_window_right;
         },
         .toggle_workspace_floating => {
-                    const window_idx = workspace.focused_window_idx orelse return;
-                    const window = &workspace.window_list.items[window_idx];
-                    window.is_floating = !window.is_floating;
-                    if (window.is_floating) {
-                        window.floating = layout.centerRectangle(
-                            output.non_exclusive,
-                            wm.getConfig(),
-                        );
-                        window.current = window.floating;
-                    }
-                },
+            const window_idx = workspace.focused_window_idx orelse return;
+            const window = &workspace.window_list.items[window_idx];
+            window.is_floating = !window.is_floating;
+            if (window.is_floating) {
+                window.floating = layout.centerRectangle(
+                    output.non_exclusive,
+                    wm.getConfig(),
+                );
+                window.current = window.floating;
+            }
+        },
         .focus_workspace_above => {
             if (workspace_idx == 0) return;
             output.focused_workspace_idx -= 1;
@@ -495,16 +495,18 @@ fn keybindingPressed(
             return;
         },
         .reload_config => {
-            if (config.reload(allocator, io, environ_map, wm.config)) |_| {} else {
+            const new_config = config.reload(allocator, io, environ_map, wm.config) orelse {
                 std.debug.print("Config reload failed — keeping current config\n", .{});
                 return;
-            }
+            };
+            wm.config = new_config;
 
             if (wm.getConfig().cursor) |cursor| {
                 wm.river_seat.?.setXcursorTheme(cursor.theme, cursor.size);
             }
             layout.update(wm.output_list, wm.getConfig());
 
+            wm.needs_setup_bindings = true;
             wm.status = .setup_bindings;
             return;
         },
@@ -515,7 +517,7 @@ fn keybindingPressed(
             };
             if (wm.overview_state != null) {
                 // layout already done by overview.enter, just request manage.
-                wm.river_window_manager.?.manageDirty();
+                if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
                 return;
             }
         },

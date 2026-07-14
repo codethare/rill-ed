@@ -86,7 +86,10 @@ pub fn main(init: std.process.Init) !void {
             std.debug.print("Window manager stopped with status: {}\n", .{status});
             break;
         }
-        if (wm.status == .animation) window_manager.manageDirty();
+        if (wm.should_exit_loop) break;
+        if (wm.status == .animation) {
+            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
+        }
     }
 }
 
@@ -153,12 +156,26 @@ fn windowManagerListener(
             window_manager.manageFinish();
         },
         .render_start => window_manager.renderFinish(),
-        .finished => window_manager.destroy(),
+        .finished => {
+            window_manager.destroy();
+            wm.river_window_manager = null;
+            wm.should_exit_loop = true;
+        },
+        .unavailable => {
+            std.debug.print("Window manager unavailable (another WM is active), exiting\n", .{});
+            wm.status = .exit;
+            wm.should_exit_loop = true;
+        },
         else => {},
     }
 }
 
 fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
+    if (wm.needs_setup_bindings) {
+        wm.status = .setup_bindings;
+        wm.needs_setup_bindings = false;
+    }
+
     if (wm.focused_output_idx == null) return;
     const river_seat = wm.river_seat orelse {
         std.debug.print("Failed to find seat\n", .{});
@@ -220,11 +237,11 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
             if (!bind_ok) return;
 
             wm.status = .layout;
-            wm.river_window_manager.?.manageDirty();
+            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
         },
         .exit => {
             // Cleanup handled by defer wm.deinit() in main() — don't call it here
-            wm.river_window_manager.?.exitSession();
+            if (wm.river_window_manager) |wmgr| wmgr.exitSession();
         },
         .none => river_seat.opEnd(),
     }
