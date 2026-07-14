@@ -14,6 +14,15 @@ pub fn windowListener(
 ) void {
     const output_idx = wm.focused_output_idx orelse return;
 
+    if (event == .closed) {
+        for (layout.pending_windows.items, 0..) |pending, idx| {
+            if (pending != river_window) continue;
+            _ = layout.pending_windows.swapRemove(idx);
+            river_window.destroy();
+            return;
+        }
+    }
+
     if (event == .dimensions) {
         for (layout.pending_windows.items, 0..) |window, idx| {
             if (window != river_window) continue;
@@ -27,7 +36,7 @@ pub fn windowListener(
 
             layout.update(wm.output_list, wm.getConfig());
             wm.status = .layout;
-            wm.river_window_manager.?.manageDirty();
+            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
             return;
         }
     }

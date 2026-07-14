@@ -60,7 +60,9 @@ pub fn apply(
                     const offset = target_ws.window_list.items.len;
                     for (src_ws.window_list.items) |window| {
                         if (window.is_fullscreen) window.river_window.exitFullscreen();
-                        target_ws.window_list.append(allocator, window) catch { window.river_window.destroy(); };
+                        target_ws.window_list.append(allocator, window) catch {
+                            window.river_window.destroy();
+                        };
                     }
                     if (src_ws.focused_window_idx) |fwi| {
                         if (target_ws.focused_window_idx == null) {
@@ -71,22 +73,13 @@ pub fn apply(
                 }
             } else {
                 if (wm.detached_workspaces) |*detached| {
-                    for (&output.workspace_list, 0..) |*src_ws, ws_idx| {
-                        const dst_ws = &detached.*[ws_idx];
-                        const offset = dst_ws.window_list.items.len;
-                        for (src_ws.window_list.items) |window| {
-                            dst_ws.window_list.append(allocator, window) catch { window.river_window.destroy(); };
-                        }
-                        if (src_ws.focused_window_idx) |fwi| {
-                            if (dst_ws.focused_window_idx == null) {
-                                dst_ws.focused_window_idx = offset + fwi;
-                            }
-                        }
-                        src_ws.window_list.deinit(allocator);
+                    // Avoid leaking the previously detached workspaces by
+                    // freeing their backing memory before overwriting.
+                    for (detached) |*workspace| {
+                        workspace.window_list.deinit(allocator);
                     }
-                } else {
-                    wm.detached_workspaces = output.workspace_list;
                 }
+                wm.detached_workspaces = output.workspace_list;
             }
 
             if (focused_output_idx.*) |foi| {

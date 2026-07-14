@@ -38,6 +38,8 @@ pub const WindowManager = struct {
     detached_workspaces: ?[10]Workspace,
     overview_state: ?OverviewState = null,
     needs_refocus: bool = false,
+    needs_setup_bindings: bool = false,
+    should_exit_loop: bool = false,
 
     pub fn getConfig(self: *WindowManager) Config {
         return self.config.*;
@@ -48,7 +50,14 @@ pub const WindowManager = struct {
 
         if (self.overview_state) |*state| state.origins.deinit(self.allocator);
 
+        for (self.xkb_binding_list.items) |binding| {
+            binding.river_xkb_binding.destroy();
+        }
         self.xkb_binding_list.deinit(self.allocator);
+
+        for (self.pointer_binding_list.items) |binding| {
+            binding.river_pointer_binding.destroy();
+        }
         self.pointer_binding_list.deinit(self.allocator);
 
         if (self.detached_workspaces) |*detached| {
@@ -60,6 +69,12 @@ pub const WindowManager = struct {
         for (self.output_list.items) |*output| {
             for (&output.workspace_list) |*workspace| {
                 workspace.window_list.deinit(self.allocator);
+            }
+            if (output.river_layer_shell_output) |layer_shell_output| {
+                layer_shell_output.destroy();
+            }
+            if (self.river_window_manager != null) {
+                output.river_output.destroy();
             }
         }
         self.output_list.deinit(self.allocator);
@@ -177,13 +192,13 @@ const Color = struct {
     }
 };
 
-const Keybinding = struct {
+pub const Keybinding = struct {
     key: [:0]const u8,
     modifiers: river.SeatV1.Modifiers,
     action: KeybindingAction,
 };
 
-const PointerBinding = struct {
+pub const PointerBinding = struct {
     button: Button,
     modifiers: river.SeatV1.Modifiers,
     action: PointerAction,
