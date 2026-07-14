@@ -56,6 +56,9 @@ pub fn windowListener(
                         }
 
                         _ = workspace.window_list.orderedRemove(idx);
+                        if (wm.last_focused_window == river_window) {
+                            wm.last_focused_window = null;
+                        }
                         river_window.destroy();
                     },
                     .fullscreen_requested => {

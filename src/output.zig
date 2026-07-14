@@ -117,6 +117,7 @@ fn outputListener(
 
                     wm.focused_output_idx = null;
                     wm.previous_workspace = null;
+                    wm.last_focused_window = null;
                     return;
                 } else if (wm.focused_output_idx) |foi| {
                     if (foi == idx) {

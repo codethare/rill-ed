@@ -41,6 +41,14 @@ pub const WindowManager = struct {
     needs_setup_bindings: bool = false,
     should_exit_loop: bool = false,
 
+    /// Last regular window we requested the compositor to focus. Used to
+    /// avoid sending redundant focus/clear_focus requests, which break input
+    /// method clients (fcitx5, kwim) on every layout cycle.
+    last_focused_window: ?*river.WindowV1 = null,
+
+    /// Current layer-shell focus state from river_layer_shell_seat_v1.
+    layer_shell_focus: enum { none, non_exclusive, exclusive } = .none,
+
     pub fn getConfig(self: *WindowManager) Config {
         return self.config.*;
     }

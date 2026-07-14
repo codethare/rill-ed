@@ -150,12 +150,22 @@ pub fn layerShellSeatListener(
     wm: *types.WindowManager,
 ) void {
     switch (event) {
+        .focus_exclusive => {
+            wm.layer_shell_focus = .exclusive;
+            wm.last_focused_window = null;
+            wm.status = .layout;
+        },
+        .focus_non_exclusive => {
+            wm.layer_shell_focus = .non_exclusive;
+            wm.last_focused_window = null;
+            wm.status = .layout;
+        },
         .focus_none => {
+            wm.layer_shell_focus = .none;
             wm.needs_refocus = true;
             wm.status = .layout;
             if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
         },
-        else => {},
     }
 }
 

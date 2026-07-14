@@ -34,7 +34,6 @@ pub fn apply(
     river_seat: *river.SeatV1,
 ) void {
     const config = wm.getConfig();
-    river_seat.clearFocus();
 
     for (pending_windows.items) |window| {
         if (config.no_csd) window.useSsd();
@@ -138,7 +137,6 @@ pub fn apply(
                 );
 
                 window.river_node.placeTop();
-                river_seat.focusWindow(window.river_window);
             }
         }
 
@@ -146,6 +144,34 @@ pub fn apply(
         if (output.river_layer_shell_output) |layer_shell_output| {
             layer_shell_output.setDefault();
         }
+    }
+
+    // Only send focus commands when the target actually changes. Unconditional
+    // clear_focus/focus_window cycles deactivate input method clients such as
+    // fcitx5 and kwim on every layout pass.
+    if (wm.layer_shell_focus == .exclusive) {
+        if (wm.last_focused_window != null) {
+            river_seat.clearFocus();
+            wm.last_focused_window = null;
+        }
+        return;
+    }
+
+    const desired_focus: ?*river.WindowV1 = blk: {
+        const foi = wm.focused_output_idx orelse break :blk null;
+        const output = &wm.output_list.items[foi];
+        const workspace = &output.workspace_list[output.focused_workspace_idx];
+        const fwi = workspace.focused_window_idx orelse break :blk null;
+        break :blk workspace.window_list.items[fwi].river_window;
+    };
+
+    if (desired_focus != wm.last_focused_window) {
+        if (desired_focus) |window| {
+            river_seat.focusWindow(window);
+        } else if (wm.layer_shell_focus != .non_exclusive) {
+            river_seat.clearFocus();
+        }
+        wm.last_focused_window = desired_focus;
     }
 }
 
