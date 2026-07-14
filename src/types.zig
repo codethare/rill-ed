@@ -45,6 +45,37 @@ pub const WindowManager = struct {
         return self.config.*;
     }
 
+    pub fn currentWorkspace(self: *WindowManager) ?WorkspaceRef {
+        const output_idx = self.focused_output_idx orelse return null;
+        if (output_idx >= self.output_list.items.len) return null;
+        const output = &self.output_list.items[output_idx];
+
+        const workspace_idx = output.focused_workspace_idx;
+        if (workspace_idx >= output.workspace_list.len) return null;
+        const workspace = &output.workspace_list[workspace_idx];
+
+        return .{
+            .output_idx = output_idx,
+            .workspace_idx = workspace_idx,
+            .output = output,
+            .workspace = workspace,
+        };
+    }
+
+    pub fn currentFocus(self: *WindowManager) ?Focus {
+        const ws = self.currentWorkspace() orelse return null;
+        const window = ws.focusedWindow() orelse return null;
+
+        return .{
+            .output_idx = ws.output_idx,
+            .workspace_idx = ws.workspace_idx,
+            .window_idx = ws.workspace.focused_window_idx.?,
+            .output = ws.output,
+            .workspace = ws.workspace,
+            .window = window,
+        };
+    }
+
     pub fn deinit(self: *WindowManager) void {
         std.zon.parse.free(self.allocator, self.config);
 
@@ -89,6 +120,7 @@ pub const Window = struct {
     proportion: f32,
     is_fullscreen: bool,
     is_floating: bool = false,
+    border_edges: river.WindowV1.Edges = .{},
     is_closing: bool,
     title: ?[:0]const u8 = null,
     floating: Rectangle,
@@ -99,12 +131,113 @@ pub const Window = struct {
 
 pub const Layout = enum { scroller, floating };
 
+pub const WorkspaceRef = struct {
+    output_idx: usize,
+    workspace_idx: usize,
+    output: *Output,
+    workspace: *Workspace,
+
+    pub fn focusedWindow(self: WorkspaceRef) ?*Window {
+        const window_idx = self.workspace.focused_window_idx orelse return null;
+        if (window_idx >= self.workspace.window_list.items.len) return null;
+        return &self.workspace.window_list.items[window_idx];
+    }
+
+    pub fn focusedWindowWithIdx(self: WorkspaceRef) ?struct { idx: usize, window: *Window } {
+        const window_idx = self.workspace.focused_window_idx orelse return null;
+        if (window_idx >= self.workspace.window_list.items.len) return null;
+        return .{ .idx = window_idx, .window = &self.workspace.window_list.items[window_idx] };
+    }
+};
+
+pub const Focus = struct {
+    output_idx: usize,
+    workspace_idx: usize,
+    window_idx: usize,
+    output: *Output,
+    workspace: *Workspace,
+    window: *Window,
+};
+
 pub const Workspace = struct {
     window_list: std.ArrayList(Window) = .empty,
     focused_window_idx: ?usize = null,
     is_floating: bool = false,
     layout: Layout = .scroller,
 };
+
+/// Update each window's cached border edges according to the workspace layout.
+/// - Floating workspaces / floating windows: all four edges.
+/// - Fullscreen windows: no edges.
+/// - Tiled scroller windows: only the leftmost window gets no border; the rest
+///   get only the left edge. If there is only one tiled window, no border.
+pub fn updateBorderEdges(workspace: *Workspace) void {
+    var leftmost_idx: ?usize = null;
+    var leftmost_x: i32 = std.math.maxInt(i32);
+    var tiled_count: usize = 0;
+
+    if (!workspace.is_floating) {
+        for (workspace.window_list.items, 0..) |window, idx| {
+            if (window.is_floating or window.is_fullscreen) continue;
+            tiled_count += 1;
+            const rect = window.finish orelse window.current;
+            if (rect.x < leftmost_x) {
+                leftmost_x = rect.x;
+                leftmost_idx = idx;
+            }
+        }
+    }
+
+    for (workspace.window_list.items, 0..) |*window, idx| {
+        if (window.is_fullscreen) {
+            window.border_edges = .{};
+            continue;
+        }
+
+        if (workspace.is_floating or window.is_floating) {
+            window.border_edges = .{
+                .top = true,
+                .bottom = true,
+                .left = true,
+                .right = true,
+            };
+            continue;
+        }
+
+        if (tiled_count <= 1) {
+            window.border_edges = .{};
+            continue;
+        }
+
+        if (leftmost_idx) |lm| {
+            if (idx == lm) {
+                window.border_edges = .{};
+            } else {
+                window.border_edges = .{ .left = true };
+            }
+        } else {
+            window.border_edges = .{};
+        }
+    }
+}
+
+/// Compute the content-area offset and size reduction for the given edges.
+pub fn borderGeometry(
+    edges: river.WindowV1.Edges,
+    width: u8,
+) struct { dx: i32, dy: i32, dw: i32, dh: i32 } {
+    const w: i32 = @intCast(width);
+    const left = if (edges.left) w else 0;
+    const right = if (edges.right) w else 0;
+    const top = if (edges.top) w else 0;
+    const bottom = if (edges.bottom) w else 0;
+    return .{
+        .dx = left,
+        .dy = top,
+        .dw = left + right,
+        .dh = top + bottom,
+    };
+}
 
 pub const Output = struct {
     river_output: *river.OutputV1,
@@ -290,3 +423,119 @@ const default_pointer_bindings = [_]PointerBinding{
     .{ .button = .left, .modifiers = .{ .mod4 = true }, .action = .move_window },
     .{ .button = .right, .modifiers = .{ .mod4 = true }, .action = .resize_window },
 };
+
+test "border edges for single tiled window" {
+    var ws = Workspace{};
+    defer ws.window_list.deinit(std.testing.allocator);
+
+    try ws.window_list.append(std.testing.allocator, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_floating = false,
+        .is_closing = false,
+        .floating = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .current = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .start = null,
+        .finish = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+    });
+
+    updateBorderEdges(&ws);
+    const edges = ws.window_list.items[0].border_edges;
+    try std.testing.expect(!edges.left and !edges.right and !edges.top and !edges.bottom);
+}
+
+test "border edges for two tiled windows" {
+    var ws = Workspace{};
+    defer ws.window_list.deinit(std.testing.allocator);
+
+    try ws.window_list.append(std.testing.allocator, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_floating = false,
+        .is_closing = false,
+        .floating = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .current = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .start = null,
+        .finish = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+    });
+    try ws.window_list.append(std.testing.allocator, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_floating = false,
+        .is_closing = false,
+        .floating = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .current = .{ .x = 110, .y = 0, .width = 100, .height = 100 },
+        .start = null,
+        .finish = .{ .x = 110, .y = 0, .width = 100, .height = 100 },
+    });
+
+    updateBorderEdges(&ws);
+    try std.testing.expect(!ws.window_list.items[0].border_edges.left);
+    try std.testing.expect(ws.window_list.items[1].border_edges.left);
+    try std.testing.expect(!ws.window_list.items[1].border_edges.right);
+}
+
+test "border edges for floating workspace" {
+    var ws = Workspace{ .is_floating = true };
+    defer ws.window_list.deinit(std.testing.allocator);
+
+    try ws.window_list.append(std.testing.allocator, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_floating = false,
+        .is_closing = false,
+        .floating = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .current = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .start = null,
+        .finish = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+    });
+
+    updateBorderEdges(&ws);
+    const edges = ws.window_list.items[0].border_edges;
+    try std.testing.expect(edges.left and edges.right and edges.top and edges.bottom);
+}
+
+test "border edges for fullscreen window" {
+    var ws = Workspace{};
+    defer ws.window_list.deinit(std.testing.allocator);
+
+    try ws.window_list.append(std.testing.allocator, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = true,
+        .is_floating = false,
+        .is_closing = false,
+        .floating = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .current = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .start = null,
+        .finish = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+    });
+
+    updateBorderEdges(&ws);
+    const edges = ws.window_list.items[0].border_edges;
+    try std.testing.expect(!edges.left and !edges.right and !edges.top and !edges.bottom);
+}
+
+test "border geometry" {
+    const edges = river.WindowV1.Edges{ .left = true, .top = true, .right = false, .bottom = false };
+    const geo = borderGeometry(edges, 3);
+    try std.testing.expectEqual(@as(i32, 3), geo.dx);
+    try std.testing.expectEqual(@as(i32, 3), geo.dy);
+    try std.testing.expectEqual(@as(i32, 3), geo.dw);
+    try std.testing.expectEqual(@as(i32, 3), geo.dh);
+
+    const none = borderGeometry(.{}, 5);
+    try std.testing.expectEqual(@as(i32, 0), none.dx);
+    try std.testing.expectEqual(@as(i32, 0), none.dy);
+    try std.testing.expectEqual(@as(i32, 0), none.dw);
+    try std.testing.expectEqual(@as(i32, 0), none.dh);
+}

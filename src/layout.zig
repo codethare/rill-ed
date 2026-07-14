@@ -101,6 +101,8 @@ pub fn apply(
         const foi = focused_output_idx.* orelse continue;
 
         for (output.workspace_list, 0..) |workspace, workspace_idx| {
+            types.updateBorderEdges(&output.workspace_list[workspace_idx]);
+
             for (workspace.window_list.items, 0..) |window, window_idx| {
                 const was_fullscreen = window.start != null and
                     window.start.?.x == output.rectangle.x and
@@ -111,7 +113,7 @@ pub fn apply(
 
                 const unfocused_color = config.border.unfocused_color.toRiverColor();
                 window.river_window.setBorders(
-                    common.edges,
+                    window.border_edges,
                     config.border.width,
                     unfocused_color.r,
                     unfocused_color.g,
@@ -127,7 +129,7 @@ pub fn apply(
 
                 const focused_color = config.border.focused_color.toRiverColor();
                 window.river_window.setBorders(
-                    common.edges,
+                    window.border_edges,
                     config.border.width,
                     focused_color.r,
                     focused_color.g,

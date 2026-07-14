@@ -13,11 +13,9 @@ pub fn seatListener(
     event: river.SeatV1.Event,
     wm: *types.WindowManager,
 ) void {
-    const output_idx = wm.focused_output_idx orelse return;
-    const output = &wm.output_list.items[output_idx];
-    const workspace = output.workspace_list[output.focused_workspace_idx];
-    const window_idx = workspace.focused_window_idx orelse return;
-    const window = &workspace.window_list.items[window_idx];
+    const focus = wm.currentFocus() orelse return;
+    const output = focus.output;
+    const window = focus.window;
 
     switch (event) {
         .window_interaction => |interaction| {
@@ -48,10 +46,10 @@ pub fn seatListener(
                     wm.focused_output_idx = target_output_idx;
                     target_workspace.focused_window_idx = target_window_idx;
 
-                    if (target_output_idx != output_idx) {
+                    if (target_output_idx != focus.output_idx) {
                         wm.previous_workspace = .{
-                            .output_idx = output_idx,
-                            .workspace_idx = output.focused_workspace_idx,
+                            .output_idx = focus.output_idx,
+                            .workspace_idx = focus.workspace_idx,
                         };
                     }
 
@@ -132,12 +130,8 @@ fn pointerBindingListener(
         if (binding.river_pointer_binding != pointer_binding) continue;
         switch (event) {
             .pressed => {
-                const output_idx = wm.focused_output_idx orelse return;
-                const output = &wm.output_list.items[output_idx];
-                const workspace = output.workspace_list[output.focused_workspace_idx];
-
-                const window_idx = workspace.focused_window_idx orelse return;
-                const window = &workspace.window_list.items[window_idx];
+                const focus = wm.currentFocus() orelse return;
+                const window = focus.window;
                 if (!window.is_floating) return;
                 if (window.is_fullscreen) return;
                 window.start = window.current;
@@ -173,19 +167,21 @@ pub fn pointerAction(
     const output = output_list.items[focused_output_idx];
     const workspace = output.workspace_list[output.focused_workspace_idx];
     const window_idx = workspace.focused_window_idx orelse return;
+    if (window_idx >= workspace.window_list.items.len) return;
     const window = workspace.window_list.items[window_idx];
 
     window.river_window.setClipBox(0, 0, 0, 0);
 
     var border_width = config.border.width;
     if (window.is_fullscreen) border_width = 0;
+    const geo = types.borderGeometry(window.border_edges, border_width);
 
     window.river_window.proposeDimensions(
-        @max(0, window.current.width - 2 * border_width),
-        @max(0, window.current.height - 2 * border_width),
+        @max(0, window.current.width - geo.dw),
+        @max(0, window.current.height - geo.dh),
     );
     window.river_node.setPosition(
-        window.current.x + border_width,
-        window.current.y + border_width,
+        window.current.x + geo.dx,
+        window.current.y + geo.dy,
     );
 }

@@ -12,8 +12,8 @@ fork of [rill](https://codeberg.org/lzj15/rill), implementing the [river-window-
 * Smooth animations (configurable duration, zero to disable)
 * Live-reloading config
 * Multi-output with window migration
-* TTY switch resilience — preserves windows and focus when switching VTs
-* Config preprocessing (`// @if(hostname=...)`, `// @include(file)` — directives pass through as ZON comments)
+* TTY switch resilience — preserves workspace state when switching VTs
+* Plain ZON config (no preprocessing)
 
 <video src="https://pub-da8894d425e3482384b5adec2dcc2361.r2.dev/recording.mp4" controls> </video>
 
