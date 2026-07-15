@@ -133,7 +133,6 @@ pub const Window = struct {
     is_fullscreen: bool,
     is_floating: bool = false,
     is_closing: bool,
-    title: ?[:0]const u8 = null,
     floating: Rectangle,
     current: Rectangle,
     start: ?Rectangle,

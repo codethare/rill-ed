@@ -67,13 +67,7 @@ pub fn windowListener(
                     .exit_fullscreen_requested => {
                         window.is_fullscreen = false;
                     },
-                    .title => |t| {
-                        window.title = if (t.title) |title|
-                            std.mem.sliceTo(title, 0)
-                        else
-                            null;
-                        return;
-                    },
+
                     else => return,
                 }
 
