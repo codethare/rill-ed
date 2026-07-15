@@ -11,8 +11,9 @@ pub fn apply(
 ) types.Status {
     const duration = config.animation_duration;
     if (duration == 0) {
-        // Instant layout — jump to finish for all windows
+        // Instant layout — jump to finish for all windows on animating outputs.
         for (output_list.items, 0..) |*output, output_idx| {
+            if (!output.is_animating) continue;
             for (output.workspace_list, 0..) |workspace, workspace_idx| {
                 for (workspace.window_list.items, 0..) |*window, window_idx| {
                     const finish = window.finish orelse continue;
@@ -31,6 +32,7 @@ pub fn apply(
                     window.finish = null;
                 }
             }
+            output.is_animating = false;
         }
         return .none;
     }
@@ -40,7 +42,11 @@ pub fn apply(
     const progress = elapsed / @as(f32, @floatFromInt(duration));
     const eased = 1 - std.math.pow(f32, 1 - progress, 3);
 
+    var any_animating = false;
     for (output_list.items, 0..) |*output, output_idx| {
+        if (!output.is_animating) continue;
+        var output_still_animating = false;
+
         for (output.workspace_list, 0..) |workspace, workspace_idx| {
             for (workspace.window_list.items, 0..) |*window, window_idx| {
                 const start = window.start orelse continue;
@@ -64,6 +70,7 @@ pub fn apply(
                         .y = start.y + y_progress,
                     };
                     placeWindow(window, output.rectangle, config);
+                    output_still_animating = true;
                 } else {
                     window.current = finish;
                     placeWindow(window, output.rectangle, config);
@@ -84,9 +91,15 @@ pub fn apply(
                 }
             }
         }
+
+        if (output_still_animating) {
+            any_animating = true;
+        } else {
+            output.is_animating = false;
+        }
     }
 
-    if (is_last_frame) {
+    if (is_last_frame or !any_animating) {
         return .none;
     } else {
         return .{ .animation = start_time };

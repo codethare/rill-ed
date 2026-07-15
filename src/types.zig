@@ -190,6 +190,8 @@ pub const Output = struct {
     rectangle: Rectangle,
     non_exclusive: Rectangle,
     is_removed: bool,
+    /// True when this output has windows that need per-frame animation.
+    is_animating: bool = false,
 };
 
 pub const Rectangle = struct {

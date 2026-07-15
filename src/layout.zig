@@ -30,6 +30,16 @@ pub fn update(output_list: std.ArrayList(types.Output), config: *const types.Con
                 .scroller => scroller.apply(workspace, output, config, y_offset),
             }
         }
+
+        output.is_animating = false;
+        for (output.workspace_list) |workspace| {
+            for (workspace.window_list.items) |window| {
+                if (window.start != null or window.finish != null) {
+                    output.is_animating = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
