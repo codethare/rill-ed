@@ -172,7 +172,7 @@ pub fn layerShellSeatListener(
 pub fn pointerAction(
     output_list: std.ArrayList(types.Output),
     focused_output_idx: usize,
-    config: types.Config,
+    config: *const types.Config,
 ) void {
     const output = output_list.items[focused_output_idx];
     const workspace = output.workspace_list[output.focused_workspace_idx];
@@ -184,14 +184,13 @@ pub fn pointerAction(
 
     var border_width = config.border.width;
     if (window.is_fullscreen) border_width = 0;
-    const geo = types.borderGeometry(window.border_edges, border_width);
 
     window.river_window.proposeDimensions(
-        @max(0, window.current.width - geo.dw),
-        @max(0, window.current.height - geo.dh),
+        @max(0, window.current.width - 2 * border_width),
+        @max(0, window.current.height - 2 * border_width),
     );
     window.river_node.setPosition(
-        window.current.x + geo.dx,
-        window.current.y + geo.dy,
+        window.current.x + border_width,
+        window.current.y + border_width,
     );
 }

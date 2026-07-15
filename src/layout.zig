@@ -11,9 +11,14 @@ pub const centerRectangle = common.centerRectangle;
 const scroller = @import("layout/scroller.zig");
 const floating = @import("layout/floating.zig");
 
-pub var pending_windows: std.ArrayList(*river.WindowV1) = .empty;
+pub const PendingWindow = struct {
+    river_window: *river.WindowV1,
+    initialized: bool = false,
+};
 
-pub fn update(output_list: std.ArrayList(types.Output), config: types.Config) void {
+pub var pending_windows: std.ArrayList(PendingWindow) = .empty;
+
+pub fn update(output_list: std.ArrayList(types.Output), config: *const types.Config) void {
     for (output_list.items) |*output| {
         for (&output.workspace_list, 0..) |*workspace, workspace_idx| {
             const workspace_offset = @as(i32, @intCast(workspace_idx)) -
@@ -35,10 +40,16 @@ pub fn apply(
 ) void {
     const config = wm.getConfig();
 
-    for (pending_windows.items) |window| {
+    const unfocused_color = config.border.unfocused_color.toRiverColor();
+    const focused_color = config.border.focused_color.toRiverColor();
+
+    for (pending_windows.items) |*pending| {
+        if (pending.initialized) continue;
+        const window = pending.river_window;
         if (config.no_csd) window.useSsd();
         window.setTiled(common.edges);
         window.proposeDimensions(0, 0);
+        pending.initialized = true;
     }
 
     const output_list = &wm.output_list;
@@ -100,8 +111,6 @@ pub fn apply(
         const foi = focused_output_idx.* orelse continue;
 
         for (output.workspace_list, 0..) |workspace, workspace_idx| {
-            types.updateBorderEdges(&output.workspace_list[workspace_idx]);
-
             for (workspace.window_list.items, 0..) |window, window_idx| {
                 const was_fullscreen = window.start != null and
                     window.start.?.x == output.rectangle.x and
@@ -110,9 +119,8 @@ pub fn apply(
                     window.start.?.height == output.rectangle.height;
                 if (was_fullscreen) window.river_window.exitFullscreen();
 
-                const unfocused_color = config.border.unfocused_color.toRiverColor();
                 window.river_window.setBorders(
-                    window.border_edges,
+                    common.edges,
                     config.border.width,
                     unfocused_color.r,
                     unfocused_color.g,
@@ -126,9 +134,8 @@ pub fn apply(
                 if (workspace_idx != output.focused_workspace_idx) continue;
                 if (window_idx != workspace.focused_window_idx) continue;
 
-                const focused_color = config.border.focused_color.toRiverColor();
                 window.river_window.setBorders(
-                    window.border_edges,
+                    common.edges,
                     config.border.width,
                     focused_color.r,
                     focused_color.g,
