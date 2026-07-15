@@ -267,6 +267,9 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
                 start_time,
                 Io.Clock.awake.now(io).toMilliseconds(),
             );
+            // Refresh borders and focus every animation frame so focus changes
+            // that arrive while an animation is active are visible immediately.
+            layout.applyFocusAndBorders(wm, river_seat);
         },
         .overview => {
             overview.applyBorders(wm, river_seat);

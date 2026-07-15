@@ -142,6 +142,8 @@ pub const Window = struct {
     sent_current: ?Rectangle = null,
     sent_clip: ?Rectangle = null,
     sent_visible: ?bool = null,
+    /// Last border focus state sent to the compositor.
+    sent_border_focused: ?bool = null,
 };
 
 pub const Layout = enum { scroller, floating };
