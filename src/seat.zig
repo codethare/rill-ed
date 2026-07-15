@@ -170,7 +170,7 @@ pub fn layerShellSeatListener(
 }
 
 pub fn pointerAction(
-    output_list: std.ArrayList(types.Output),
+    output_list: *std.ArrayList(types.Output),
     focused_output_idx: usize,
     config: *const types.Config,
 ) void {

@@ -280,7 +280,7 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
         .pointer_action => {
             const focused_output_idx = wm.focused_output_idx orelse return;
             river_seat.opStartPointer();
-            seat.pointerAction(wm.output_list, focused_output_idx, wm.getConfig());
+            seat.pointerAction(&wm.output_list, focused_output_idx, wm.getConfig());
         },
         .setup_bindings => {
             var bind_ok = true;
