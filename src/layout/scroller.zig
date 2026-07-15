@@ -82,6 +82,17 @@ pub fn apply(
         output.non_exclusive,
         config.horizontal_gap,
     );
+
+    for (workspace.window_list.items) |*window| {
+        const finish = window.finish orelse continue;
+        if (finish.eql(window.current) and
+            window.sent_current != null and
+            window.sent_current.?.eql(window.current))
+        {
+            window.start = null;
+            window.finish = null;
+        }
+    }
 }
 
 fn focusedWindowLayout(
