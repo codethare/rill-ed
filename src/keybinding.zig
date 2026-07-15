@@ -63,6 +63,9 @@ fn xkbBindingListener(
 ) void {
     if (wm.status == .pointer_action) return;
 
+    // Suppress keybindings while the session is locked (ext-session-lock-v1).
+    if (wm.session_locked) return;
+
     // During overview, intercept all key events for navigation.
     if (wm.overview_state != null and event == .pressed) {
         overviewKeyPressed(wm, xkb_binding) catch |err| {
@@ -124,7 +127,7 @@ fn keybindingPressed(
             const gap = wm.getConfig().horizontal_gap;
             const base_width: f32 = @floatFromInt(output.non_exclusive.width - gap);
             const width_with_gap: i32 = @trunc(base_width * (window.proportion + increment));
-            if (width_with_gap - gap < wm.getConfig().border.width) return;
+            if (width_with_gap - gap < 2 * wm.getConfig().border.width) return;
 
             window.proportion += increment;
         },

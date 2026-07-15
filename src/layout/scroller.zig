@@ -5,7 +5,7 @@ const types = @import("../types.zig");
 pub fn apply(
     workspace: *types.Workspace,
     output: *types.Output,
-    config: types.Config,
+    config: *const types.Config,
     y_offset: i32,
 ) void {
     for (workspace.window_list.items) |*window| {
@@ -88,7 +88,7 @@ fn focusedWindowLayout(
     window: *types.Window,
     rectangle: *types.Rectangle,
     output: *types.Output,
-    config: types.Config,
+    config: *const types.Config,
     y_offset: i32,
     should_center: bool,
     window_count: usize,
@@ -131,7 +131,7 @@ fn unfocusedWindowLayout(
     window: *types.Window,
     rectangle: *types.Rectangle,
     output: *types.Output,
-    config: types.Config,
+    config: *const types.Config,
     y_offset: i32,
 ) void {
     if (window.is_fullscreen) {

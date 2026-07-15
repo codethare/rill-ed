@@ -84,11 +84,58 @@ pub fn main(init: std.process.Init) !void {
     }
 
     while (true) {
-        const status = display.dispatch();
+        // Drain any already-queued events without blocking.
+        var status = display.dispatchPending();
         if (status != .SUCCESS) {
-            std.debug.print("Window manager stopped with status: {}\n", .{status});
+            std.debug.print("Window manager stopped with status (pending): {}\n", .{status});
             break;
         }
+
+        // prepareRead returns true when the queue is empty and we
+        // are clear to poll. If false, events accumulated between
+        // dispatchPending and prepareRead — loop back to drain them.
+        if (display.prepareRead()) {
+            // Flush outgoing requests before polling so the compositor
+            // can respond to them without delay.
+            _ = display.flush();
+
+            var fds = [_]std.posix.pollfd{
+                .{ .fd = display.getFd(), .events = std.posix.POLL.IN, .revents = 0 },
+            };
+            // 5-second timeout so we don't block forever when the
+            // compositor is unresponsive (e.g. after hibernate/resume).
+            const poll_ret = std.posix.poll(&fds, 5000) catch |err| {
+                display.cancelRead();
+                std.debug.print("Window manager poll error: {}\n", .{err});
+                continue;
+            };
+            if (poll_ret == 0) {
+                // Timeout — compositor hasn't sent anything.
+                display.cancelRead();
+                continue;
+            }
+            // Check for hangup / error on the socket fd.
+            if (fds[0].revents & std.posix.POLL.HUP != 0 or
+                fds[0].revents & std.posix.POLL.ERR != 0)
+            {
+                display.cancelRead();
+                std.debug.print("Window manager stopped: compositor connection closed\n", .{});
+                break;
+            }
+            // Events ready — readEvents takes over from prepareRead.
+            status = display.readEvents();
+            if (status != .SUCCESS) {
+                std.debug.print("Window manager stopped (read): {}\n", .{status});
+                break;
+            }
+        }
+
+        status = display.dispatchPending();
+        if (status != .SUCCESS) {
+            std.debug.print("Window manager stopped with status (dispatch): {}\n", .{status});
+            break;
+        }
+
         if (wm.should_exit_loop) break;
         if (wm.status == .animation) {
             if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
@@ -147,7 +194,7 @@ fn windowManagerListener(
             layer_shell_seat.setListener(*types.WindowManager, seat.layerShellSeatListener, wm);
         },
         .window => |window_event| {
-            layout.pending_windows.append(wm.allocator, window_event.id) catch |err| {
+            layout.pending_windows.append(wm.allocator, .{ .river_window = window_event.id }) catch |err| {
                 std.debug.print("Failed to add window: {}\n", .{err});
                 return;
             };
@@ -164,12 +211,17 @@ fn windowManagerListener(
             wm.river_window_manager = null;
             wm.should_exit_loop = true;
         },
+        .session_locked => {
+            wm.session_locked = true;
+        },
+        .session_unlocked => {
+            wm.session_locked = false;
+        },
         .unavailable => {
             std.debug.print("Window manager unavailable (another WM is active), exiting\n", .{});
             wm.status = .exit;
             wm.should_exit_loop = true;
         },
-        else => {},
     }
 }
 

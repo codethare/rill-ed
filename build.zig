@@ -3,9 +3,13 @@ const Scanner = @import("wayland").Scanner;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.option(
+        std.builtin.OptimizeMode,
+        "optimize",
+        "Build optimization mode",
+    ) orelse .ReleaseSafe;
 
-    const strip = b.option(bool, "strip", "Strip debug information") orelse false;
+    const strip = b.option(bool, "strip", "Strip debug information") orelse true;
     const pie = b.option(bool, "pie", "Build position independent executable") orelse true;
 
     const scanner = Scanner.create(b, .{});

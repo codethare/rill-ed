@@ -3,6 +3,7 @@ const std = @import("std");
 const wayland = @import("wayland");
 const river = wayland.client.river;
 
+const common = @import("layout/common.zig");
 const types = @import("types.zig");
 const layout = @import("layout.zig");
 
@@ -61,18 +62,23 @@ pub fn enter(
 
     const total_windows = target_ws.window_list.items.len;
     const cols = gridColumns(total_windows, &output.non_exclusive);
+    const rows = (total_windows + cols - 1) / cols;
 
-    const positions = gridPositions(
-        allocator,
-        total_windows,
-        cols,
-        output.non_exclusive,
-    );
-    defer allocator.free(positions);
+    const gap: i32 = 10;
+    const cell_w = @divTrunc(output.non_exclusive.width - gap * (@as(i32, @intCast(cols)) + 1), @as(i32, @intCast(cols)));
+    const cell_h = @divTrunc(output.non_exclusive.height - gap * (@as(i32, @intCast(rows)) + 1), @as(i32, @intCast(rows)));
 
     for (target_ws.window_list.items, 0..) |*window, i| {
-        window.floating = positions[i];
-        window.finish = positions[i];
+        const row: i32 = @intCast(i / cols);
+        const col: i32 = @intCast(i % cols);
+        const rect = types.Rectangle{
+            .x = output.non_exclusive.x + gap + col * (cell_w + gap),
+            .y = output.non_exclusive.y + gap + row * (cell_h + gap),
+            .width = cell_w,
+            .height = cell_h,
+        };
+        window.floating = rect;
+        window.finish = rect;
         window.start = window.current;
     }
 
@@ -189,33 +195,6 @@ fn gridColumns(total: usize, rect: *const types.Rectangle) usize {
     return @max(1, @as(usize, @intFromFloat(@ceil(cols_f))));
 }
 
-fn gridPositions(
-    allocator: std.mem.Allocator,
-    total: usize,
-    cols: usize,
-    rect: types.Rectangle,
-) []types.Rectangle {
-    const rows = (total + cols - 1) / cols;
-
-    const gap: i32 = 10;
-    const cell_w = @divTrunc(rect.width - gap * (@as(i32, @intCast(cols)) + 1), @as(i32, @intCast(cols)));
-    const cell_h = @divTrunc(rect.height - gap * (@as(i32, @intCast(rows)) + 1), @as(i32, @intCast(rows)));
-
-    const positions = allocator.alloc(types.Rectangle, total) catch @panic("OOM");
-
-    for (0..total) |i| {
-        const row: i32 = @intCast(i / cols);
-        const col: i32 = @intCast(i % cols);
-        positions[i] = .{
-            .x = rect.x + gap + col * (cell_w + gap),
-            .y = rect.y + gap + row * (cell_h + gap),
-            .width = cell_w,
-            .height = cell_h,
-        };
-    }
-    return positions;
-}
-
 /// Apply border colors and focus for the overview state without recalculating layout.
 pub fn applyBorders(
     wm: *types.WindowManager,
@@ -232,14 +211,12 @@ pub fn applyBorders(
     const focused_color = config.border.focused_color.toRiverColor();
 
     const ws = &output.workspace_list[0];
-    types.updateBorderEdges(ws);
-
     for (ws.window_list.items, 0..) |*window, idx| {
         window.river_window.exitFullscreen();
 
         if (idx == state.highlighted) {
             window.river_window.setBorders(
-                window.border_edges,
+                common.edges,
                 config.border.width,
                 focused_color.r,
                 focused_color.g,
@@ -250,7 +227,7 @@ pub fn applyBorders(
             river_seat.focusWindow(window.river_window);
         } else {
             window.river_window.setBorders(
-                window.border_edges,
+                common.edges,
                 config.border.width,
                 unfocused_color.r,
                 unfocused_color.g,

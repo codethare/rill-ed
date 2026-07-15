@@ -12,7 +12,7 @@ pub const edges = river.WindowV1.Edges{
     .right = true,
 };
 
-pub fn initialRectangle(non_exclusive: types.Rectangle, config: types.Config) types.Rectangle {
+pub fn initialRectangle(non_exclusive: types.Rectangle, config: *const types.Config) types.Rectangle {
     const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
     const width_with_gap: i32 = @trunc(base_width * config.default_window_width);
     return .{
@@ -23,7 +23,7 @@ pub fn initialRectangle(non_exclusive: types.Rectangle, config: types.Config) ty
     };
 }
 
-pub fn centerRectangle(non_exclusive: types.Rectangle, config: types.Config) types.Rectangle {
+pub fn centerRectangle(non_exclusive: types.Rectangle, config: *const types.Config) types.Rectangle {
     const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
     const width_with_gap: i32 = @trunc(base_width * config.default_window_width);
     const w = width_with_gap - config.horizontal_gap;

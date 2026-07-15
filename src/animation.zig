@@ -5,7 +5,7 @@ const types = @import("types.zig");
 pub fn apply(
     output_list: std.ArrayList(types.Output),
     focused_output_idx: usize,
-    config: types.Config,
+    config: *const types.Config,
     start_time: i64,
     now: i64,
 ) types.Status {
@@ -96,20 +96,22 @@ pub fn apply(
 fn placeWindow(
     window: *types.Window,
     output_rectangle: types.Rectangle,
-    config: types.Config,
+    config: *const types.Config,
 ) void {
     var border_width = config.border.width;
     if (window.is_fullscreen) border_width = 0;
-    const geo = types.borderGeometry(window.border_edges, border_width);
 
-    window.river_window.proposeDimensions(
-        @max(0, window.current.width - geo.dw),
-        @max(0, window.current.height - geo.dh),
-    );
-    window.river_node.setPosition(
-        window.current.x + geo.dx,
-        window.current.y + geo.dy,
-    );
+    if (window.sent_current == null or !window.sent_current.?.eql(window.current)) {
+        window.river_window.proposeDimensions(
+            @max(0, window.current.width - 2 * border_width),
+            @max(0, window.current.height - 2 * border_width),
+        );
+        window.river_node.setPosition(
+            window.current.x + border_width,
+            window.current.y + border_width,
+        );
+        window.sent_current = window.current;
+    }
 
     const window_left = window.current.x;
     const window_right = window.current.x + window.current.width;
@@ -121,12 +123,11 @@ fn placeWindow(
     const output_top = output_rectangle.y;
     const output_bottom = output_rectangle.y + output_rectangle.height;
 
-    if (output_left >= window_right or output_right <= window_left or
-        output_top >= window_bottom or output_bottom <= window_top)
-    {
-        window.river_window.hide();
-    } else {
-        window.river_window.show();
+    const visible = !(output_left >= window_right or output_right <= window_left or
+        output_top >= window_bottom or output_bottom <= window_top);
+    if (window.sent_visible == null or window.sent_visible.? != visible) {
+        if (visible) window.river_window.show() else window.river_window.hide();
+        window.sent_visible = visible;
     }
 
     var clip_width = window.current.width;
@@ -148,10 +149,14 @@ fn placeWindow(
         clip_height = output_bottom - window_top;
     }
 
-    window.river_window.setClipBox(
-        clip_x - geo.dx,
-        clip_y - geo.dy,
-        clip_width,
-        clip_height,
-    );
+    const clip = types.Rectangle{
+        .x = clip_x - border_width,
+        .y = clip_y - border_width,
+        .width = clip_width,
+        .height = clip_height,
+    };
+    if (window.sent_clip == null or !window.sent_clip.?.eql(clip)) {
+        window.river_window.setClipBox(clip.x, clip.y, clip.width, clip.height);
+        window.sent_clip = clip;
+    }
 }

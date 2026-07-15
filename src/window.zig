@@ -13,8 +13,8 @@ pub fn windowListener(
     wm: *types.WindowManager,
 ) void {
     if (event == .closed) {
-        for (layout.pending_windows.items, 0..) |pending, idx| {
-            if (pending != river_window) continue;
+        for (layout.pending_windows.items, 0..) |*pending, idx| {
+            if (pending.river_window != river_window) continue;
             _ = layout.pending_windows.swapRemove(idx);
             river_window.destroy();
             return;
@@ -24,10 +24,10 @@ pub fn windowListener(
     if (event == .dimensions) {
         const ws = wm.currentWorkspace() orelse return;
 
-        for (layout.pending_windows.items, 0..) |window, idx| {
-            if (window != river_window) continue;
+        for (layout.pending_windows.items, 0..) |*pending, idx| {
+            if (pending.river_window != river_window) continue;
 
-            add(wm.allocator, window, ws.output, wm.getConfig()) catch |err| {
+            add(wm.allocator, pending.river_window, ws.output, wm.getConfig()) catch |err| {
                 std.debug.print("Failed to add window: {}\n", .{err});
                 return;
             };
@@ -89,7 +89,7 @@ fn add(
     allocator: Allocator,
     river_window: *river.WindowV1,
     output: *types.Output,
-    config: types.Config,
+    config: *const types.Config,
 ) !void {
     const workspace = &output.workspace_list[output.focused_workspace_idx];
     const initial_rect = if (workspace.layout == .floating)
@@ -108,6 +108,9 @@ fn add(
         .current = initial_rect,
         .start = null,
         .finish = null,
+        .sent_current = null,
+        .sent_clip = null,
+        .sent_visible = null,
     };
 
     var window_idx: usize = 0;
