@@ -43,13 +43,15 @@ pub fn enter(
             }
             continue;
         }
+        var window_idx: usize = 0;
         while (src_ws.window_list.items.len > 0) {
             const window = src_ws.window_list.orderedRemove(0);
             if (window.is_fullscreen) window.river_window.exitFullscreen();
             try origins.append(allocator, .{
                 .workspace_idx = ws_idx,
-                .window_idx = src_ws.focused_window_idx orelse 0,
+                .window_idx = window_idx,
             });
+            window_idx += 1;
             try target_ws.window_list.append(allocator, window);
         }
         src_ws.focused_window_idx = null;
@@ -172,7 +174,10 @@ fn restoreWindows(
         moved_window.current = moved_window.floating;
 
         const dst = &output.workspace_list[origin.workspace_idx];
-        const insert_at = @min(origin.window_idx, dst.window_list.items.len);
+        // Overview empties each source workspace before entering, so every
+        // destination is empty here. Removing from the end of the overview
+        // list and prepending to the destination preserves the original order.
+        const insert_at: usize = 0;
         dst.window_list.insert(allocator, insert_at, moved_window) catch {
             moved_window.river_window.destroy();
         };
