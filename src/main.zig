@@ -67,7 +67,12 @@ pub fn main(init: std.process.Init) !void {
     };
     // pnytl: layout.zig imports types.zig, so types can't import layout;
     // free the global here. Registered before wm.deinit so LIFO runs it after.
-    defer layout.pending_windows.deinit(wm.allocator);
+    defer {
+        for (layout.pending_windows.items) |pending| {
+            pending.river_window.destroy();
+        }
+        layout.pending_windows.deinit(wm.allocator);
+    }
     defer wm.deinit();
 
     wm.registry.setListener(*types.WindowManager, registryListener, &wm);
