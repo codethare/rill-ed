@@ -40,9 +40,6 @@ pub fn apply(
 ) void {
     const config = wm.getConfig();
 
-    const unfocused_color = config.border.unfocused_color.toRiverColor();
-    const focused_color = config.border.focused_color.toRiverColor();
-
     for (pending_windows.items) |*pending| {
         if (pending.initialized) continue;
         const window = pending.river_window;
@@ -108,10 +105,8 @@ pub fn apply(
             continue;
         }
 
-        const foi = focused_output_idx.* orelse continue;
-
-        for (output.workspace_list, 0..) |workspace, workspace_idx| {
-            for (workspace.window_list.items, 0..) |window, window_idx| {
+        for (output.workspace_list) |workspace| {
+            for (workspace.window_list.items) |*window| {
                 const was_fullscreen = window.start != null and
                     window.start.?.x == output.rectangle.x and
                     window.start.?.y == output.rectangle.y and
@@ -119,30 +114,52 @@ pub fn apply(
                     window.start.?.height == output.rectangle.height;
                 if (was_fullscreen) window.river_window.exitFullscreen();
 
-                window.river_window.setBorders(
-                    common.edges,
-                    config.border.width,
-                    unfocused_color.r,
-                    unfocused_color.g,
-                    unfocused_color.b,
-                    unfocused_color.a,
-                );
-
                 if (window.is_closing) window.river_window.close();
+            }
+        }
+    }
 
-                if (output_idx != foi) continue;
-                if (workspace_idx != output.focused_workspace_idx) continue;
-                if (window_idx != workspace.focused_window_idx) continue;
+    applyFocusAndBorders(wm, river_seat);
+}
 
-                window.river_window.setBorders(
-                    common.edges,
-                    config.border.width,
-                    focused_color.r,
-                    focused_color.g,
-                    focused_color.b,
-                    focused_color.a,
-                );
+/// Set border colors and keyboard focus to match the current focused
+/// window/output. Safe to call every frame: redundant border and focus requests
+/// are skipped so IME clients are not disrupted.
+pub fn applyFocusAndBorders(
+    wm: *types.WindowManager,
+    river_seat: *river.SeatV1,
+) void {
+    const config = wm.getConfig();
+    const unfocused_color = config.border.unfocused_color.toRiverColor();
+    const focused_color = config.border.focused_color.toRiverColor();
 
+    const foi = wm.focused_output_idx orelse return;
+
+    for (wm.output_list.items, 0..) |*output, output_idx| {
+        if (output.is_removed) continue;
+
+        for (output.workspace_list, 0..) |workspace, workspace_idx| {
+            for (workspace.window_list.items, 0..) |*window, window_idx| {
+                const is_focused = output_idx == foi and
+                    workspace_idx == output.focused_workspace_idx and
+                    window_idx == workspace.focused_window_idx;
+
+                if (window.sent_border_focused == null or
+                    window.sent_border_focused.? != is_focused)
+                {
+                    const color = if (is_focused) focused_color else unfocused_color;
+                    window.river_window.setBorders(
+                        common.edges,
+                        config.border.width,
+                        color.r,
+                        color.g,
+                        color.b,
+                        color.a,
+                    );
+                    window.sent_border_focused = is_focused;
+                }
+
+                if (!is_focused) continue;
                 window.river_node.placeTop();
             }
         }
@@ -165,7 +182,6 @@ pub fn apply(
     }
 
     const desired_focus: ?*river.WindowV1 = blk: {
-        const foi = wm.focused_output_idx orelse break :blk null;
         const output = &wm.output_list.items[foi];
         const workspace = &output.workspace_list[output.focused_workspace_idx];
         const fwi = workspace.focused_window_idx orelse break :blk null;
