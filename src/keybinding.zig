@@ -340,6 +340,7 @@ fn keybindingPressed(
                     output.rectangle.x) continue;
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -353,6 +354,7 @@ fn keybindingPressed(
                     output.rectangle.x + output.rectangle.width) continue;
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -366,6 +368,7 @@ fn keybindingPressed(
                     output.rectangle.y) continue;
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -379,6 +382,7 @@ fn keybindingPressed(
                     output.rectangle.y + output.rectangle.height) continue;
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -408,6 +412,7 @@ fn keybindingPressed(
                     layout.initialRectangle(target_output.non_exclusive, wm.getConfig());
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -437,6 +442,7 @@ fn keybindingPressed(
                     layout.initialRectangle(target_output.non_exclusive, wm.getConfig());
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -466,6 +472,7 @@ fn keybindingPressed(
                     layout.initialRectangle(target_output.non_exclusive, wm.getConfig());
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -495,6 +502,7 @@ fn keybindingPressed(
                     layout.initialRectangle(target_output.non_exclusive, wm.getConfig());
 
                 wm.focused_output_idx = target_output_idx;
+                wm.needs_pointer_warp = true;
                 wm.previous_workspace = .{
                     .output_idx = ws.output_idx,
                     .workspace_idx = ws.workspace_idx,
@@ -527,7 +535,11 @@ fn keybindingPressed(
                 return;
             };
             if (wm.overview_state != null) {
-                // layout already done by overview.enter, just request manage.
+                // overview.enter moved windows to workspace 0 and set their
+                // target rectangles, but output.is_animating is computed by
+                // layout.update. Without it the manage cycle never commits
+                // the new positions, so the old workspace view stays on screen.
+                layout.update(wm.output_list, wm.getConfig());
                 if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
                 return;
             }

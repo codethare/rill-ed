@@ -36,6 +36,10 @@ pub const WindowManager = struct {
     /// underlying river_window_v1 proxies alive, so we restore these windows
     /// when a replacement output appears (e.g. TTY switch-back).
     detached_workspaces: ?[10]Workspace,
+    /// Workspaces saved when an output is removed while other outputs remain.
+    /// Windows are preserved here so they can be restored when the output
+    /// returns (e.g. DPMS off during screen lock).
+    detached_outputs: std.ArrayList(DetachedOutput),
     overview_state: ?OverviewState = null,
     needs_refocus: bool = false,
     needs_setup_bindings: bool = false,
@@ -52,6 +56,11 @@ pub const WindowManager = struct {
     /// True when the compositor has sent session_locked (ext-session-lock-v1).
     /// Keybindings are suppressed while locked.
     session_locked: bool = false,
+
+    /// Set when the focused output changes because an output was added/removed;
+    /// the next layout pass warps the pointer to the new output so the cursor
+    /// follows focus, matching niri and hyprland behavior.
+    needs_pointer_warp: bool = false,
 
     pub fn getConfig(self: *WindowManager) *const Config {
         return self.config;
@@ -108,6 +117,13 @@ pub const WindowManager = struct {
                 workspace.window_list.deinit(self.allocator);
             }
         }
+
+        for (self.detached_outputs.items) |*detached| {
+            for (&detached.workspace_list) |*workspace| {
+                workspace.window_list.deinit(self.allocator);
+            }
+        }
+        self.detached_outputs.deinit(self.allocator);
 
         for (self.output_list.items) |*output| {
             for (&output.workspace_list) |*workspace| {
@@ -193,6 +209,49 @@ pub const Output = struct {
     /// True when this output has windows that need per-frame animation.
     is_animating: bool = false,
 };
+
+/// Workspaces saved when an output is removed while other outputs are still
+/// active. The windows are preserved so they can be restored if the output
+/// comes back (e.g., a laptop screen that was powered off during screen lock).
+pub const DetachedOutput = struct {
+    workspace_list: [10]Workspace,
+    focused_workspace_idx: usize,
+};
+
+test "DetachedOutput preserves workspace state and windows" {
+    const allocator = std.testing.allocator;
+    var detached = DetachedOutput{
+        .workspace_list = [_]Workspace{.{}} ** 10,
+        .focused_workspace_idx = 3,
+    };
+    defer {
+        for (&detached.workspace_list) |*workspace| {
+            workspace.window_list.deinit(allocator);
+        }
+    }
+
+    detached.workspace_list[3].is_floating = true;
+    detached.workspace_list[3].layout = .floating;
+
+    var dummy_window: usize = 0;
+    var dummy_node: usize = 0;
+    try detached.workspace_list[3].window_list.append(allocator, .{
+        .river_window = @ptrCast(&dummy_window),
+        .river_node = @ptrCast(&dummy_node),
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_closing = false,
+        .start = null,
+        .finish = null,
+        .floating = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+        .current = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
+    });
+
+    try std.testing.expect(detached.focused_workspace_idx == 3);
+    try std.testing.expect(detached.workspace_list[3].is_floating);
+    try std.testing.expect(detached.workspace_list[3].layout == .floating);
+    try std.testing.expect(detached.workspace_list[3].window_list.items.len == 1);
+}
 
 pub const Rectangle = struct {
     width: i32,

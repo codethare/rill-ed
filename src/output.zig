@@ -21,8 +21,13 @@ pub fn add(
         .non_exclusive = undefined,
         .is_removed = false,
     };
+    const had_previous_output = wm.output_list.items.len > 0;
     try wm.output_list.append(allocator, output);
     wm.focused_output_idx = wm.output_list.items.len - 1;
+    // A newly-connected output becomes focused automatically. Warp the
+    // pointer to it on the next layout pass so the cursor follows focus,
+    // matching niri and hyprland behavior.
+    if (had_previous_output) wm.needs_pointer_warp = true;
     river_output.setListener(*types.WindowManager, outputListener, wm);
 
     // If the previous output was removed without any surviving display (e.g. TTY
@@ -129,6 +134,9 @@ fn outputListener(
                                 break;
                             }
                         }
+                        // Warp the cursor on the next layout pass so it does
+                        // not remain trapped on the disabled output.
+                        wm.needs_pointer_warp = true;
                     }
                 }
 
