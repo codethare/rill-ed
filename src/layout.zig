@@ -200,7 +200,9 @@ pub fn applyFocusAndBorders(
                     window_idx == workspace.focused_window_idx;
 
                 if (window.sent_border_focused == null or
-                    window.sent_border_focused.? != is_focused)
+                    window.sent_border_focused.? != is_focused or
+                    window.sent_border_width == null or
+                    window.sent_border_width.? != config.border.width)
                 {
                     const color = if (is_focused) focused_color else unfocused_color;
                     window.river_window.setBorders(
@@ -212,6 +214,7 @@ pub fn applyFocusAndBorders(
                         color.a,
                     );
                     window.sent_border_focused = is_focused;
+                    window.sent_border_width = config.border.width;
                 }
 
                 if (!is_focused) continue;

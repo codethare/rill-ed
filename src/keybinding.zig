@@ -527,6 +527,7 @@ fn keybindingPressed(
 
             wm.needs_setup_bindings = true;
             wm.status = .setup_bindings;
+            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
             return;
         },
         .enter_overview => {
