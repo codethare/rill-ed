@@ -98,21 +98,36 @@ fn outputListener(
                     if (!o.is_removed) active_count += 1;
                 }
                 if (active_count == 0) {
-                    // Last surviving output was removed. Detach workspace state
-                    // (without stale window objects) and remove it immediately so
-                    // a replacement output doesn't migrate dead proxies.
+                    // Last surviving output was removed. Preserve workspaces
+                    // (with windows) in detached_outputs so they can be restored
+                    // when the output comes back (e.g. DPMS off/on during lock).
                     if (wm.detached_workspaces) |*detached| {
                         for (detached) |*workspace| {
                             workspace.window_list.deinit(wm.allocator);
                         }
+                        wm.detached_workspaces = null;
                     }
-                    for (&output.workspace_list) |*workspace| {
-                        for (workspace.window_list.items) |window| {
-                            window.river_window.destroy();
-                        }
-                        workspace.window_list.deinit(wm.allocator);
+                    {
+                        const detached = types.DetachedOutput{
+                            .workspace_list = output.workspace_list,
+                            .focused_workspace_idx = output.focused_workspace_idx,
+                        };
+                        wm.detached_outputs.append(wm.allocator, detached) catch {
+                            // Fallback: if allocation fails, destroy windows as
+                            // we used to do for the last-removed output.
+                            for (&output.workspace_list) |*workspace| {
+                                for (workspace.window_list.items) |window| {
+                                    window.river_window.destroy();
+                                }
+                                workspace.window_list.deinit(wm.allocator);
+                            }
+                        };
                     }
-                    wm.detached_workspaces = output.workspace_list;
+                    // The workspaces (with windows) now live in detached_outputs.
+                    // Leave an empty workspace list on the removed output so the
+                    // no-surviving-output path in layout.apply() doesn't re-save
+                    // the same windows to detached_workspaces.
+                    output.workspace_list = [_]types.Workspace{.{}} ** 10;
 
                     if (output.river_layer_shell_output) |layer_shell_output| {
                         layer_shell_output.destroy();

@@ -154,6 +154,18 @@ pub fn apply(
             workspace.* = detached.workspace_list[ws_idx];
         }
         target.focused_workspace_idx = detached.focused_workspace_idx;
+        // The previous output's compositor-side state was destroyed on
+        // removal; reset sent_* caches so show/proposeDimensions/setBorders
+        // are re-issued for the fresh output.
+        for (&target.workspace_list) |*workspace| {
+            for (workspace.window_list.items) |*window| {
+                window.sent_visible = null;
+                window.sent_current = null;
+                window.sent_clip = null;
+                window.sent_border_focused = null;
+                window.sent_border_width = null;
+            }
+        }
         restored_any = true;
     }
     if (restored_any) update(wm.output_list, config);
