@@ -159,6 +159,8 @@ pub const Window = struct {
     sent_visible: ?bool = null,
     /// Last border focus state sent to the compositor.
     sent_border_focused: ?bool = null,
+    /// Last border width sent to the compositor.
+    sent_border_width: ?u8 = null,
 };
 
 pub const Layout = enum { scroller, floating };
