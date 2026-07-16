@@ -152,12 +152,10 @@ pub fn layerShellSeatListener(
     switch (event) {
         .focus_exclusive => {
             wm.layer_shell_focus = .exclusive;
-            wm.last_focused_window = null;
             wm.status = .layout;
         },
         .focus_non_exclusive => {
             wm.layer_shell_focus = .non_exclusive;
-            wm.last_focused_window = null;
             wm.status = .layout;
         },
         .focus_none => {

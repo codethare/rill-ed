@@ -12,6 +12,93 @@ const overview = @import("overview.zig");
 const spawn = @import("spawn.zig");
 const types = @import("types.zig");
 
+pub const default_keybindings = [_]types.Keybinding{
+    .{ .key = "q", .modifiers = .{ .mod4 = true }, .action = .close_window },
+    .{ .key = "f", .modifiers = .{ .mod4 = true }, .action = .toggle_fullscreen },
+
+    .{ .key = "minus", .modifiers = .{ .mod4 = true }, .action = .{ .adjust_window_width = -0.1 } },
+    .{ .key = "equal", .modifiers = .{ .mod4 = true }, .action = .{ .adjust_window_width = 0.1 } },
+    .{ .key = "BackSpace", .modifiers = .{ .mod4 = true }, .action = .{ .set_window_width = 0.5 } },
+
+    .{ .key = "Left", .modifiers = .{ .mod4 = true }, .action = .focus_window_left },
+    .{ .key = "Right", .modifiers = .{ .mod4 = true }, .action = .focus_window_right },
+    .{ .key = "Left", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_left },
+    .{ .key = "Right", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_right },
+
+    .{ .key = "v", .modifiers = .{ .mod4 = true }, .action = .toggle_workspace_floating },
+
+    .{ .key = "Up", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_above },
+    .{ .key = "Down", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_below },
+    .{ .key = "grave", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_previous },
+
+    .{ .key = "1", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 1 } },
+    .{ .key = "2", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 2 } },
+    .{ .key = "3", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 3 } },
+    .{ .key = "4", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 4 } },
+    .{ .key = "5", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 5 } },
+    .{ .key = "6", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 6 } },
+    .{ .key = "7", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 7 } },
+    .{ .key = "8", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 8 } },
+    .{ .key = "9", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 9 } },
+    .{ .key = "0", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 10 } },
+
+    .{ .key = "Up", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_workspace_above },
+    .{ .key = "Down", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_workspace_below },
+
+    .{ .key = "1", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 1 } },
+    .{ .key = "2", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 2 } },
+    .{ .key = "3", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 3 } },
+    .{ .key = "4", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 4 } },
+    .{ .key = "5", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 5 } },
+    .{ .key = "6", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 6 } },
+    .{ .key = "7", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 7 } },
+    .{ .key = "8", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 8 } },
+    .{ .key = "9", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 9 } },
+    .{ .key = "0", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 10 } },
+
+    .{ .key = "h", .modifiers = .{ .mod4 = true }, .action = .focus_output_left },
+    .{ .key = "l", .modifiers = .{ .mod4 = true }, .action = .focus_output_right },
+    .{ .key = "k", .modifiers = .{ .mod4 = true }, .action = .focus_output_above },
+    .{ .key = "j", .modifiers = .{ .mod4 = true }, .action = .focus_output_below },
+
+    .{ .key = "h", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_left },
+    .{ .key = "l", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_right },
+    .{ .key = "k", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_above },
+    .{ .key = "j", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_below },
+
+    .{ .key = "Escape", .modifiers = .{ .mod4 = true }, .action = .exit },
+    .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .reload_config },
+
+    .{ .key = "t", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = &[_][]const u8{"alacritty"} } },
+    .{ .key = "Space", .modifiers = .{ .mod4 = true }, .action = .enter_overview },
+
+    .{
+        .key = "XF86AudioRaiseVolume",
+        .modifiers = .{},
+        .action = .{ .spawn = &[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.05+", "--limit", "1.0" } },
+    },
+    .{
+        .key = "XF86AudioLowerVolume",
+        .modifiers = .{},
+        .action = .{ .spawn = &[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.05-" } },
+    },
+    .{
+        .key = "XF86AudioMute",
+        .modifiers = .{},
+        .action = .{ .spawn = &[_][]const u8{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } },
+    },
+    .{
+        .key = "XF86AudioMicMute",
+        .modifiers = .{},
+        .action = .{ .spawn = &[_][]const u8{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle" } },
+    },
+};
+
+pub const default_pointer_bindings = [_]types.PointerBinding{
+    .{ .button = .left, .modifiers = .{ .mod4 = true }, .action = .move_window },
+    .{ .button = .right, .modifiers = .{ .mod4 = true }, .action = .resize_window },
+};
+
 pub fn setupKeybindings(allocator: Allocator, wm: *types.WindowManager) !void {
     for (wm.xkb_binding_list.items) |binding| binding.river_xkb_binding.destroy();
     wm.xkb_binding_list.clearRetainingCapacity();
@@ -48,7 +135,7 @@ fn parseKey(key: [:0]const u8) ?xkbcommon.Keysym {
 }
 
 test "validate default keybindings" {
-    for (types.default_keybindings) |keybinding| {
+    for (default_keybindings) |keybinding| {
         if (parseKey(keybinding.key) == null) {
             std.debug.print("Keysym '{s}' is not valid\n", .{keybinding.key});
         }
