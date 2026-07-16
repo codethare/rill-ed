@@ -56,6 +56,7 @@ pub fn apply(
         if (config.no_csd) window.useSsd();
         window.setTiled(common.edges);
         window.proposeDimensions(0, 0);
+        window.hide();
         pending.initialized = true;
     }
 
@@ -71,23 +72,26 @@ pub fn apply(
         const output = &output_list.items[output_idx];
 
         if (output.is_removed) {
-            if (migration_target_idx) |target_idx| {
-                for (&output.workspace_list, 0..) |*src_ws, ws_idx| {
-                    const target_ws = &output_list.items[target_idx].workspace_list[ws_idx];
-                    const offset = target_ws.window_list.items.len;
-                    for (src_ws.window_list.items) |window| {
-                        if (window.is_fullscreen) window.river_window.exitFullscreen();
-                        target_ws.window_list.append(allocator, window) catch {
+            if (migration_target_idx) |_| {
+                // Instead of migrating windows to the surviving output, detach
+                // the removed output's workspaces (with windows) so they can be
+                // restored when the output comes back. This prevents windows
+                // from jumping to the external monitor when the laptop screen
+                // is temporarily powered off during screen lock.
+                const detached = types.DetachedOutput{
+                    .workspace_list = output.workspace_list,
+                    .focused_workspace_idx = output.focused_workspace_idx,
+                };
+                wm.detached_outputs.append(allocator, detached) catch {
+                    // Fallback: if allocation fails, destroy the windows as we
+                    // used to do for the last-removed output.
+                    for (&output.workspace_list) |*workspace| {
+                        for (workspace.window_list.items) |window| {
                             window.river_window.destroy();
-                        };
-                    }
-                    if (src_ws.focused_window_idx) |fwi| {
-                        if (target_ws.focused_window_idx == null) {
-                            target_ws.focused_window_idx = offset + fwi;
                         }
+                        workspace.window_list.deinit(allocator);
                     }
-                    src_ws.window_list.deinit(allocator);
-                }
+                };
             } else {
                 if (wm.detached_workspaces) |*detached| {
                     // Avoid leaking the previously detached workspaces by
@@ -98,6 +102,11 @@ pub fn apply(
                 }
                 wm.detached_workspaces = output.workspace_list;
             }
+
+            if (output.river_layer_shell_output) |layer_shell_output| {
+                layer_shell_output.destroy();
+            }
+            output.river_output.destroy();
 
             if (focused_output_idx.*) |foi| {
                 if (foi == output_idx) {
@@ -129,7 +138,43 @@ pub fn apply(
         }
     }
 
+    // Restore workspaces (with windows) that were detached when an output was
+    // removed while other outputs survived. This must be done inside a manage
+    // sequence; restoring them in output.add() would modify window management
+    // state before manage_start and could freeze the compositor.
+    var restored_any = false;
+    while (wm.detached_outputs.items.len > 0 and wm.output_list.items.len > 0) {
+        const detached = wm.detached_outputs.orderedRemove(0);
+        // Restore to the most recently added output, which is the one that
+        // just came back after being temporarily removed.
+        const target_idx = wm.output_list.items.len - 1;
+        const target = &wm.output_list.items[target_idx];
+        for (&target.workspace_list, 0..) |*workspace, ws_idx| {
+            workspace.window_list.deinit(allocator);
+            workspace.* = detached.workspace_list[ws_idx];
+        }
+        target.focused_workspace_idx = detached.focused_workspace_idx;
+        restored_any = true;
+    }
+    if (restored_any) update(wm.output_list, config);
+
     applyFocusAndBorders(wm, river_seat);
+
+    // When output focus moves to a different output (new output added, output
+    // removed, or focus-output keybinding), warp the pointer to the focused
+    // output's center. This matches the behavior of niri and hyprland and
+    // prevents the cursor from staying trapped on a disabled or newly-connected
+    // display.
+    if (wm.needs_pointer_warp) {
+        wm.needs_pointer_warp = false;
+        if (wm.focused_output_idx) |idx| {
+            const target = &wm.output_list.items[idx];
+            river_seat.pointerWarp(
+                target.rectangle.x + @divTrunc(target.rectangle.width, 2),
+                target.rectangle.y + @divTrunc(target.rectangle.height, 2),
+            );
+        }
+    }
 }
 
 /// Set border colors and keyboard focus to match the current focused

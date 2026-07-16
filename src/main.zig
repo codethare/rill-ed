@@ -63,6 +63,7 @@ pub fn main(init: std.process.Init) !void {
         .xkb_binding_list = .empty,
         .pointer_binding_list = .empty,
         .detached_workspaces = null,
+        .detached_outputs = .empty,
         .status = .none,
     };
     // pnytl: layout.zig imports types.zig, so types can't import layout;
