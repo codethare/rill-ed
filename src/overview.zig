@@ -7,8 +7,8 @@ const common = @import("layout/common.zig");
 const types = @import("types.zig");
 const layout = @import("layout.zig");
 
-/// Collect all windows from all workspaces on the current output into
-/// workspace 0 and arrange them in a grid.
+/// Collect all windows from all workspaces across all outputs into
+/// workspace 0 of the focused output and arrange them in a grid.
 pub fn enter(
     allocator: std.mem.Allocator,
     wm: *types.WindowManager,
@@ -18,43 +18,50 @@ pub fn enter(
 
     var origins: std.ArrayList(types.OverviewState.Origin) = .empty;
 
+    // Count total windows across ALL outputs.
     var total: usize = 0;
-    for (output.workspace_list) |ws| {
-        total += ws.window_list.items.len;
+    for (wm.output_list.items) |*out| {
+        for (out.workspace_list) |ws| {
+            total += ws.window_list.items.len;
+        }
     }
 
     if (total == 0) return;
 
-    // Move all windows to workspace 0, recording origins.
+    // Move all windows from all outputs to workspace 0 of the focused output, recording origins.
     const target_ws = &output.workspace_list[0];
-    for (&output.workspace_list, 0..) |*src_ws, ws_idx| {
-        if (ws_idx == 0) {
-            for (src_ws.window_list.items) |*w| {
-                if (w.is_fullscreen) {
-                    w.is_fullscreen = false;
-                    w.river_window.exitFullscreen();
+    for (wm.output_list.items, 0..) |*out, out_idx| {
+        for (&out.workspace_list, 0..) |*src_ws, ws_idx| {
+            if (out_idx == output_idx and ws_idx == 0) {
+                for (src_ws.window_list.items) |*w| {
+                    if (w.is_fullscreen) {
+                        w.is_fullscreen = false;
+                        w.river_window.exitFullscreen();
+                    }
                 }
+                for (src_ws.window_list.items, 0..) |_, win_idx| {
+                    try origins.append(allocator, .{
+                        .output_idx = out_idx,
+                        .workspace_idx = 0,
+                        .window_idx = win_idx,
+                    });
+                }
+                continue;
             }
-            for (src_ws.window_list.items, 0..) |_, win_idx| {
+            var window_idx: usize = 0;
+            while (src_ws.window_list.items.len > 0) {
+                const window = src_ws.window_list.orderedRemove(0);
+                if (window.is_fullscreen) window.river_window.exitFullscreen();
                 try origins.append(allocator, .{
-                    .workspace_idx = 0,
-                    .window_idx = win_idx,
+                    .output_idx = out_idx,
+                    .workspace_idx = ws_idx,
+                    .window_idx = window_idx,
                 });
+                window_idx += 1;
+                try target_ws.window_list.append(allocator, window);
             }
-            continue;
+            src_ws.focused_window_idx = null;
         }
-        var window_idx: usize = 0;
-        while (src_ws.window_list.items.len > 0) {
-            const window = src_ws.window_list.orderedRemove(0);
-            if (window.is_fullscreen) window.river_window.exitFullscreen();
-            try origins.append(allocator, .{
-                .workspace_idx = ws_idx,
-                .window_idx = window_idx,
-            });
-            window_idx += 1;
-            try target_ws.window_list.append(allocator, window);
-        }
-        src_ws.focused_window_idx = null;
     }
 
     // Set up the overview workspace as floating and calculate grid layout.
@@ -92,10 +99,16 @@ pub fn enter(
         .highlighted = 0,
         .columns = cols,
         .output_idx = output_idx,
-        .previous_workspace = if (wm.previous_workspace) |pw|
-            .{ .output_idx = pw.output_idx, .workspace_idx = pw.workspace_idx }
-        else
-            null,
+        .previous_workspace = blk: {
+            if (wm.focused_output_idx) |focused_idx| {
+                const focused_output = &wm.output_list.items[focused_idx];
+                break :blk .{
+                    .output_idx = focused_idx,
+                    .workspace_idx = focused_output.focused_workspace_idx,
+                };
+            }
+            break :blk null;
+        },
     };
 
     wm.status = .overview;
@@ -119,8 +132,8 @@ pub fn select(
     wm.overview_state.?.origins.deinit(allocator);
     wm.overview_state = null;
 
-    wm.focused_output_idx = ov_state.output_idx;
-    const output = &wm.output_list.items[ov_state.output_idx];
+    wm.focused_output_idx = origin.output_idx;
+    const output = &wm.output_list.items[origin.output_idx];
     output.focused_workspace_idx = origin.workspace_idx;
     const ws = &output.workspace_list[origin.workspace_idx];
     ws.focused_window_idx = @min(origin.window_idx, ws.window_list.items.len -| 1);
@@ -160,23 +173,21 @@ fn restoreWindows(
     wm: *types.WindowManager,
     state: types.OverviewState,
 ) void {
-    const output = &wm.output_list.items[state.output_idx];
-    const overview_ws = &output.workspace_list[0];
+    const overview_output = &wm.output_list.items[state.output_idx];
+    const overview_ws = &overview_output.workspace_list[0];
 
     var i: usize = overview_ws.window_list.items.len;
     while (i > 0) {
         i -= 1;
         const origin = state.origins.items[i];
-        if (origin.workspace_idx == 0) continue;
+        if (origin.output_idx == state.output_idx and origin.workspace_idx == 0) continue;
 
         var moved_window = overview_ws.window_list.orderedRemove(i);
-        moved_window.floating = layout.centerRectangle(output.non_exclusive, wm.getConfig());
+        const dst_output = &wm.output_list.items[origin.output_idx];
+        moved_window.floating = layout.centerRectangle(dst_output.non_exclusive, wm.getConfig());
         moved_window.current = moved_window.floating;
 
-        const dst = &output.workspace_list[origin.workspace_idx];
-        // Overview empties each source workspace before entering, so every
-        // destination is empty here. Removing from the end of the overview
-        // list and prepending to the destination preserves the original order.
+        const dst = &dst_output.workspace_list[origin.workspace_idx];
         const insert_at: usize = 0;
         dst.window_list.insert(allocator, insert_at, moved_window) catch {
             moved_window.river_window.destroy();
@@ -212,8 +223,8 @@ pub fn applyBorders(
 
     river_seat.clearFocus();
 
-    const unfocused_color = config.border.unfocused_color.toRiverColor();
-    const focused_color = config.border.focused_color.toRiverColor();
+    const unfocused_color = layout.colorToRiver(config.border.unfocused_color);
+    const focused_color = layout.colorToRiver(config.border.focused_color);
 
     const ws = &output.workspace_list[0];
     for (ws.window_list.items, 0..) |*window, idx| {

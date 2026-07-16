@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
 
+const keybinding = @import("keybinding.zig");
 const types = @import("types.zig");
 
 const Location = enum { XDG_CONFIG_HOME, HOME };
@@ -41,7 +42,8 @@ fn cloneConfig(allocator: Allocator, cfg: types.Config) !types.Config {
 }
 
 fn cloneKeybindings(allocator: Allocator, keybindings: []const types.Keybinding) ![]const types.Keybinding {
-    const cloned = try allocator.dupe(types.Keybinding, keybindings);
+    const source: []const types.Keybinding = if (keybindings.len == 0) &keybinding.default_keybindings else keybindings;
+    const cloned = try allocator.dupe(types.Keybinding, source);
     for (cloned) |*kb| {
         kb.key = try allocator.dupeZ(u8, std.mem.sliceTo(kb.key, 0));
         switch (kb.action) {
@@ -59,7 +61,8 @@ fn cloneKeybindings(allocator: Allocator, keybindings: []const types.Keybinding)
 }
 
 fn clonePointerBindings(allocator: Allocator, pointer_bindings: []const types.PointerBinding) ![]const types.PointerBinding {
-    return try allocator.dupe(types.PointerBinding, pointer_bindings);
+    const source: []const types.PointerBinding = if (pointer_bindings.len == 0) &keybinding.default_pointer_bindings else pointer_bindings;
+    return try allocator.dupe(types.PointerBinding, source);
 }
 
 fn cloneSpawnAtStartup(allocator: Allocator, spawn_at_startup: []const []const []const u8) ![]const []const []const u8 {

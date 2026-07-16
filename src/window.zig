@@ -13,9 +13,9 @@ pub fn windowListener(
     wm: *types.WindowManager,
 ) void {
     if (event == .closed) {
-        for (layout.pending_windows.items, 0..) |*pending, idx| {
+        for (wm.pending_windows.items, 0..) |*pending, idx| {
             if (pending.river_window != river_window) continue;
-            _ = layout.pending_windows.swapRemove(idx);
+            _ = wm.pending_windows.swapRemove(idx);
             river_window.destroy();
             return;
         }
@@ -24,14 +24,14 @@ pub fn windowListener(
     if (event == .dimensions) {
         const ws = wm.currentWorkspace() orelse return;
 
-        for (layout.pending_windows.items, 0..) |*pending, idx| {
+        for (wm.pending_windows.items, 0..) |*pending, idx| {
             if (pending.river_window != river_window) continue;
 
             add(wm.allocator, pending.river_window, ws.output, wm.getConfig()) catch |err| {
                 std.debug.print("Failed to add window: {}\n", .{err});
                 return;
             };
-            _ = layout.pending_windows.swapRemove(idx);
+            _ = wm.pending_windows.swapRemove(idx);
 
             layout.update(wm.output_list, wm.getConfig());
             wm.status = .layout;
@@ -58,6 +58,9 @@ pub fn windowListener(
                         _ = workspace.window_list.orderedRemove(idx);
                         if (wm.last_focused_window == river_window) {
                             wm.last_focused_window = null;
+                        }
+                        if (wm.lock_focus == river_window) {
+                            wm.lock_focus = null;
                         }
                         river_window.destroy();
                     },

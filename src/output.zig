@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const wayland = @import("wayland");
 const river = wayland.client.river;
+const wl = wayland.client.wl;
 
 const layout = @import("layout.zig");
 const types = @import("types.zig");
@@ -23,34 +24,18 @@ pub fn add(
     };
     const had_previous_output = wm.output_list.items.len > 0;
     try wm.output_list.append(allocator, output);
-    wm.focused_output_idx = wm.output_list.items.len - 1;
+    const new_idx = wm.output_list.items.len - 1;
+    wm.focused_output_idx = new_idx;
     // A newly-connected output becomes focused automatically. Warp the
     // pointer to it on the next layout pass so the cursor follows focus,
     // matching niri and hyprland behavior.
     if (had_previous_output) wm.needs_pointer_warp = true;
     river_output.setListener(*types.WindowManager, outputListener, wm);
 
-    // If the previous output was removed without any surviving display (e.g. TTY
-    // switch-away), its workspaces were preserved. Restore them on the new output.
-    if (wm.detached_workspaces) |*detached| {
-        const restored = &wm.output_list.items[wm.focused_output_idx.?];
-        for (&restored.workspace_list, 0..) |*workspace, ws_idx| {
-            // Restore workspace-level state only; river will send fresh
-            // river_window_v1 proxies for the windows after TTY switch-back.
-            workspace.is_floating = detached[ws_idx].is_floating;
-            workspace.layout = detached[ws_idx].layout;
-        }
-
-        // The detached window lists were emptied before detaching; just free
-        // any residual capacity.
-        for (detached) |*workspace| {
-            workspace.window_list.deinit(wm.allocator);
-        }
-        wm.detached_workspaces = null;
-
-        wm.status = .layout;
-        if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
-    }
+    // Workspace and window restoration for reappearing outputs is handled by
+    // layout.apply() inside the manage sequence. Output state is keyed by
+    // output name so it is restored to the correct display even when the
+    // compositor re-creates the output with a new river_output_v1.
 }
 
 fn getLayerShellOutput(
@@ -88,79 +73,58 @@ fn outputListener(
                 output.rectangle.x = position.x;
                 output.rectangle.y = position.y;
             },
+            .wl_output => |data| {
+                const wl_output = wm.registry.bind(data.name, wl.Output, 4) catch {
+                    std.debug.print("Failed to bind wl_output\n", .{});
+                    return;
+                };
+                output.wl_output = wl_output;
+                wl_output.setListener(*types.WindowManager, wlOutputListener, wm);
+            },
             .removed => {
                 output.is_removed = true;
                 wm.status = .layout;
 
-                // Count active (non-removed) outputs, not total items.len
+                // All window management state modifications (migration,
+                // detachment, destroy) are deferred to layout.apply(),
+                // which runs inside the manage sequence. Calling them here
+                // is a protocol error per river-window-management-v1:
+                //   "Window management state may only be modified by the
+                //    window manager as part of a manage sequence."
+                // Violating this during swidle+waylock (DPMS off/on) causes
+                // compositor disconnects and lost windows.
+
+                // Count active (non-removed) outputs for focus adjustment.
                 var active_count: usize = 0;
                 for (wm.output_list.items) |o| {
                     if (!o.is_removed) active_count += 1;
                 }
-                if (active_count == 0) {
-                    // Last surviving output was removed. Preserve workspaces
-                    // (with windows) in detached_outputs so they can be restored
-                    // when the output comes back (e.g. DPMS off/on during lock).
-                    if (wm.detached_workspaces) |*detached| {
-                        for (detached) |*workspace| {
-                            workspace.window_list.deinit(wm.allocator);
-                        }
-                        wm.detached_workspaces = null;
-                    }
-                    {
-                        const detached = types.DetachedOutput{
-                            .workspace_list = output.workspace_list,
-                            .focused_workspace_idx = output.focused_workspace_idx,
-                        };
-                        wm.detached_outputs.append(wm.allocator, detached) catch {
-                            // Fallback: if allocation fails, destroy windows as
-                            // we used to do for the last-removed output.
-                            for (&output.workspace_list) |*workspace| {
-                                for (workspace.window_list.items) |window| {
-                                    window.river_window.destroy();
-                                }
-                                workspace.window_list.deinit(wm.allocator);
-                            }
-                        };
-                    }
-                    // The workspaces (with windows) now live in detached_outputs.
-                    // Leave an empty workspace list on the removed output so the
-                    // no-surviving-output path in layout.apply() doesn't re-save
-                    // the same windows to detached_workspaces.
-                    output.workspace_list = [_]types.Workspace{.{}} ** 10;
 
-                    if (output.river_layer_shell_output) |layer_shell_output| {
-                        layer_shell_output.destroy();
-                    }
-                    output.river_output.destroy();
-                    _ = wm.output_list.orderedRemove(idx);
-
-                    wm.focused_output_idx = null;
-                    wm.previous_workspace = null;
-                    wm.last_focused_window = null;
-                    return;
-                } else if (wm.focused_output_idx) |foi| {
+                // Adjust focus if the removed output was focused.
+                // When surviving outputs exist, switch focus to one.
+                // When it was the last output, leave focused_output_idx
+                // alone so manage() doesn't return early — layout.apply()
+                // nullifies it during cleanup inside the manage sequence.
+                if (wm.focused_output_idx) |foi| {
                     if (foi == idx) {
-                        // pnytl: current focus was this removed output → first alive
-                        wm.focused_output_idx = null;
-                        for (wm.output_list.items, 0..) |o, i| {
-                            if (!o.is_removed) {
-                                wm.focused_output_idx = i;
-                                break;
+                        if (active_count > 0) {
+                            wm.focused_output_idx = null;
+                            for (wm.output_list.items, 0..) |o, i| {
+                                if (!o.is_removed) {
+                                    wm.focused_output_idx = i;
+                                    break;
+                                }
                             }
+                            wm.needs_pointer_warp = true;
                         }
-                        // Warp the cursor on the next layout pass so it does
-                        // not remain trapped on the disabled output.
-                        wm.needs_pointer_warp = true;
                     }
                 }
 
-                const previous_workspace = wm.previous_workspace orelse return;
-                if (previous_workspace.output_idx == idx) {
-                    wm.previous_workspace = null;
+                // Clear previous_workspace if it pointed to the removed output.
+                if (wm.previous_workspace) |pw| {
+                    if (pw.output_idx == idx) wm.previous_workspace = null;
                 }
             },
-            else => {},
         }
         return;
     }
@@ -187,4 +151,31 @@ fn layerShellOutputListener(
         }
         return;
     }
+}
+
+fn wlOutputListener(wl_output: *wl.Output, event: wl.Output.Event, wm: *types.WindowManager) void {
+    const output = for (wm.output_list.items) |*o| {
+        if (o.wl_output == wl_output) break o;
+    } else return;
+
+    switch (event) {
+        .name => |data| {
+            const name = std.mem.span(data.name);
+            if (output.name) |old_name| wm.allocator.free(old_name);
+            output.name = wm.allocator.dupe(u8, name) catch null;
+            // Ensure the next manage sequence runs so layout.apply() can
+            // restore any workspaces or windows keyed to this output name.
+            wm.status = .layout;
+            if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
+        },
+        else => {},
+    }
+}
+
+// migrateWindowsOut, migrateWindowsBack, and detachOutput are now in
+// layout.zig so they run inside the manage sequence. See layout.zig's
+// apply() for the is_removed output handling.
+
+test {
+    _ = std.testing.refAllDecls(@This());
 }

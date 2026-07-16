@@ -62,18 +62,9 @@ pub fn main(init: std.process.Init) !void {
         .config = cfg,
         .xkb_binding_list = .empty,
         .pointer_binding_list = .empty,
-        .detached_workspaces = null,
-        .detached_outputs = .empty,
+        .detached_outputs = std.StringHashMap(types.DetachedOutput).init(init.gpa),
         .status = .none,
     };
-    // pnytl: layout.zig imports types.zig, so types can't import layout;
-    // free the global here. Registered before wm.deinit so LIFO runs it after.
-    defer {
-        for (layout.pending_windows.items) |pending| {
-            pending.river_window.destroy();
-        }
-        layout.pending_windows.deinit(wm.allocator);
-    }
     defer wm.deinit();
 
     wm.registry.setListener(*types.WindowManager, registryListener, &wm);
@@ -200,7 +191,7 @@ fn windowManagerListener(
             layer_shell_seat.setListener(*types.WindowManager, seat.layerShellSeatListener, wm);
         },
         .window => |window_event| {
-            layout.pending_windows.append(wm.allocator, .{ .river_window = window_event.id }) catch |err| {
+            wm.pending_windows.append(wm.allocator, .{ .river_window = window_event.id }) catch |err| {
                 std.debug.print("Failed to add window: {}\n", .{err});
                 return;
             };
@@ -219,9 +210,33 @@ fn windowManagerListener(
         },
         .session_locked => {
             wm.session_locked = true;
+            // Save the focused window before lock so we can restore it after
+            // waylock, mirroring KWM's save/restore pattern for the lock mode.
+            wm.lock_focus = if (wm.currentFocus()) |focus| focus.window.river_window else null;
         },
         .session_unlocked => {
             wm.session_locked = false;
+            // Restore focus to the window that was focused before lock, wherever
+            // it currently lives (it may have migrated across outputs during lock).
+            if (wm.lock_focus) |locked_window| {
+                outer: for (wm.output_list.items, 0..) |*out, output_idx| {
+                    for (&out.workspace_list, 0..) |*workspace, workspace_idx| {
+                        for (workspace.window_list.items, 0..) |*win, window_idx| {
+                            if (win.river_window == locked_window) {
+                                wm.focused_output_idx = output_idx;
+                                out.focused_workspace_idx = workspace_idx;
+                                workspace.focused_window_idx = window_idx;
+                                break :outer;
+                            }
+                        }
+                    }
+                }
+            }
+            wm.lock_focus = null;
+            wm.layer_shell_focus = .none;
+            wm.needs_refocus = true;
+            wm.status = .layout;
+            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
         },
         .unavailable => {
             std.debug.print("Window manager unavailable (another WM is active), exiting\n", .{});
