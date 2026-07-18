@@ -30,6 +30,13 @@
         // .{ "wl-clip-persist", "--clipboard", "both" },
     },
 
+    // Rules for windows, matched by exact app_id and/or title (all set
+    // fields must match). Matched when the window is first mapped.
+    .window_rules = .{
+        // .{ .app_id = "footclient", .floating = true },
+        // .{ .title = "Picture-in-Picture", .floating = true },
+    },
+
     .keybindings = .{
         // Key: keysym names (case insensitive) from xkbcommon-keysyms.h
         // Common ones include:
