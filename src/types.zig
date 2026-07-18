@@ -16,6 +16,10 @@ pub const KeybindingAction = actions.KeybindingAction;
 pub const PendingWindow = struct {
     river_window: *river.WindowV1,
     initialized: bool = false,
+    /// Owned copies of the latest app_id/title events, freed when the
+    /// pending window is removed.
+    title: ?[:0]const u8 = null,
+    app_id: ?[:0]const u8 = null,
 };
 
 pub const WindowManager = struct {
@@ -115,6 +119,8 @@ pub const WindowManager = struct {
             if (self.river_window_manager != null) {
                 pending.river_window.destroy();
             }
+            if (pending.title) |t| self.allocator.free(t);
+            if (pending.app_id) |a| self.allocator.free(a);
         }
         self.pending_windows.deinit(self.allocator);
 
@@ -307,7 +313,38 @@ pub const Config = struct {
     spawn_at_startup: []const []const []const u8 = &.{},
     keybindings: []const Keybinding = &.{},
     pointer_bindings: []const PointerBinding = &.{},
+    window_rules: []const WindowRule = &.{},
 };
+
+/// Rule matching windows by exact app_id/title. All set fields must match.
+pub const WindowRule = struct {
+    app_id: ?[:0]const u8 = null,
+    title: ?[:0]const u8 = null,
+    floating: bool = false,
+
+    pub fn matches(rule: WindowRule, app_id: ?[:0]const u8, title: ?[:0]const u8) bool {
+        if (rule.app_id == null and rule.title == null) return false;
+        if (rule.app_id) |a| {
+            if (app_id == null or !std.mem.eql(u8, a, app_id.?)) return false;
+        }
+        if (rule.title) |t| {
+            if (title == null or !std.mem.eql(u8, t, title.?)) return false;
+        }
+        return true;
+    }
+};
+
+test "WindowRule.matches" {
+    const r: WindowRule = .{ .app_id = "footclient", .floating = true };
+    try std.testing.expect(r.matches("footclient", null));
+    try std.testing.expect(!r.matches("foot", null));
+    try std.testing.expect(!r.matches(null, null));
+    const both: WindowRule = .{ .app_id = "a", .title = "t" };
+    try std.testing.expect(both.matches("a", "t"));
+    try std.testing.expect(!both.matches("a", "x"));
+    const empty: WindowRule = .{ .floating = true };
+    try std.testing.expect(!empty.matches("a", "t"));
+}
 
 const Border = struct { width: u8, focused_color: Color, unfocused_color: Color };
 

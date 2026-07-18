@@ -38,6 +38,7 @@ fn cloneConfig(allocator: Allocator, cfg: types.Config) !types.Config {
     cloned.keybindings = try cloneKeybindings(allocator, cfg.keybindings);
     cloned.pointer_bindings = try clonePointerBindings(allocator, cfg.pointer_bindings);
     cloned.spawn_at_startup = try cloneSpawnAtStartup(allocator, cfg.spawn_at_startup);
+    cloned.window_rules = try cloneWindowRules(allocator, cfg.window_rules);
     return cloned;
 }
 
@@ -63,6 +64,15 @@ fn cloneKeybindings(allocator: Allocator, keybindings: []const types.Keybinding)
 fn clonePointerBindings(allocator: Allocator, pointer_bindings: []const types.PointerBinding) ![]const types.PointerBinding {
     const source: []const types.PointerBinding = if (pointer_bindings.len == 0) &keybinding.default_pointer_bindings else pointer_bindings;
     return try allocator.dupe(types.PointerBinding, source);
+}
+
+fn cloneWindowRules(allocator: Allocator, rules: []const types.WindowRule) ![]const types.WindowRule {
+    const cloned = try allocator.dupe(types.WindowRule, rules);
+    for (cloned) |*rule| {
+        if (rule.app_id) |a| rule.app_id = try allocator.dupeZ(u8, a);
+        if (rule.title) |t| rule.title = try allocator.dupeZ(u8, t);
+    }
+    return cloned;
 }
 
 fn cloneSpawnAtStartup(allocator: Allocator, spawn_at_startup: []const []const []const u8) ![]const []const []const u8 {
