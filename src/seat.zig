@@ -160,6 +160,9 @@ pub fn layerShellSeatListener(
         },
         .focus_none => {
             wm.layer_shell_focus = .none;
+            // Exclusive layer-shell focus was revoked; invalidate the
+            // stale focus cache so focusWindow is re-issued.
+            wm.last_focused_window = null;
             wm.needs_refocus = true;
             wm.status = .layout;
             if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
