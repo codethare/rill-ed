@@ -19,10 +19,17 @@ pub fn apply(
     const focused_window_idx = workspace.focused_window_idx orelse return;
     const window_count = workspace.window_list.items.len;
 
+    // Floating windows take no space in the strip; only tiled windows count
+    // for the single-window fill and .single centering below.
+    var tiled_count: usize = 0;
+    for (workspace.window_list.items) |*window| {
+        if (!window.is_floating) tiled_count += 1;
+    }
+
     const should_center = switch (config.center_focused_window) {
         .never => false,
         .always => true,
-        .single => window_count == 1,
+        .single => tiled_count == 1,
     };
 
     var rectangle: types.Rectangle = undefined;
@@ -30,7 +37,7 @@ pub fn apply(
     const focused_is_floating = workspace.window_list.items[focused_window_idx].is_floating;
     if (!focused_is_floating) {
         const focused_window = &workspace.window_list.items[focused_window_idx];
-        focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center, window_count);
+        focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center, tiled_count);
         focused_window.finish = rectangle;
 
         // Unfocused windows to the right of focused
@@ -64,7 +71,7 @@ pub fn apply(
         if (anchor_idx == null) return;
 
         const anchor = &workspace.window_list.items[anchor_idx.?];
-        focusedWindowLayout(anchor, &rectangle, output, config, y_offset, should_center, window_count);
+        focusedWindowLayout(anchor, &rectangle, output, config, y_offset, should_center, tiled_count);
         anchor.finish = rectangle;
 
         var i: usize = (anchor_idx.? + 1) % window_count;
@@ -102,13 +109,13 @@ fn focusedWindowLayout(
     config: *const types.Config,
     y_offset: i32,
     should_center: bool,
-    window_count: usize,
+    tiled_count: usize,
 ) void {
     const non_exclusive = output.non_exclusive;
     const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
     // ponytail: single window fills the usable width; keep stored proportion
     // untouched so adding a second window restores the prior split sizes.
-    const proportion = if (window_count == 1) @as(f32, 1.0) else window.proportion;
+    const proportion = if (tiled_count == 1) @as(f32, 1.0) else window.proportion;
     const width_with_gap: i32 = @trunc(base_width * proportion);
 
     rectangle.* = .{
@@ -159,6 +166,66 @@ fn unfocusedWindowLayout(
         rectangle.y = non_exclusive.y + config.vertical_gap + y_offset;
     }
     window.start = window.current;
+}
+
+test "floating window frees its slot; last tiled window fills" {
+    const alloc = std.testing.allocator;
+    const config: types.Config = .{};
+    var output: types.Output = .{
+        .river_output = undefined,
+        .river_layer_shell_output = null,
+        .name = null,
+        .workspace_list = [_]types.Workspace{.{}} ** 10,
+        .focused_workspace_idx = 0,
+        .rectangle = .{ .x = 0, .y = 0, .width = 1920, .height = 1080 },
+        .non_exclusive = .{ .x = 0, .y = 0, .width = 1920, .height = 1080 },
+        .is_removed = false,
+    };
+    const ws = &output.workspace_list[0];
+    for (0..2) |_| {
+        try ws.window_list.append(alloc, .{
+            .river_window = undefined,
+            .river_node = undefined,
+            .proportion = 0.5,
+            .is_fullscreen = false,
+            .is_floating = false,
+            .is_closing = false,
+            .floating = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+            .current = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+            .start = null,
+            .finish = null,
+        });
+    }
+    defer ws.window_list.deinit(alloc);
+    ws.focused_window_idx = 1;
+
+    apply(ws, &output, &config, 0);
+    for (ws.window_list.items) |*w| {
+        w.current = w.finish.?;
+        w.sent_current = w.finish.?;
+        w.start = null;
+        w.finish = null;
+    }
+
+    // Toggle the focused window floating (mirrors the keybinding handler).
+    const b = &ws.window_list.items[1];
+    b.is_floating = true;
+    b.floating = .{ .x = 460, .y = 190, .width = 1000, .height = 700 };
+    b.current = b.floating;
+
+    apply(ws, &output, &config, 0);
+
+    // The remaining tiled window fills the usable width instead of leaving
+    // the floated window's slot empty.
+    const a = &ws.window_list.items[0];
+    try std.testing.expectEqual(
+        output.non_exclusive.width - 2 * config.horizontal_gap,
+        a.finish.?.width,
+    );
+    // The floating window keeps its floating rectangle.
+    try std.testing.expect(b.finish.?.eql(b.floating));
+    // Stored proportions are untouched so un-floating restores the split.
+    try std.testing.expectEqual(@as(f32, 0.5), a.proportion);
 }
 
 fn snapToEdge(
