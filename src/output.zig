@@ -124,6 +124,12 @@ fn outputListener(
                 if (wm.previous_workspace) |pw| {
                     if (pw.output_idx == idx) wm.previous_workspace = null;
                 }
+
+                // Request a manage sequence so layout.apply() can migrate
+                // windows to surviving outputs and clean up the removed
+                // output inside the manage sequence as required by the
+                // river-window-management-v1 protocol.
+                if (wm.river_window_manager) |window_manager| window_manager.manageDirty();
             },
         }
         return;

@@ -234,6 +234,10 @@ fn windowManagerListener(
             }
             wm.lock_focus = null;
             wm.layer_shell_focus = .none;
+            // The lock surface held keyboard focus, so the cached
+            // last_focused_window is stale; invalidate it so
+            // applyFocusAndBorders re-issues focusWindow on unlock.
+            wm.last_focused_window = null;
             wm.needs_refocus = true;
             wm.status = .layout;
             if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
