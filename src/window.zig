@@ -121,6 +121,12 @@ fn add(
 ) !void {
     const river_window = pending.river_window;
     const workspace = &output.workspace_list[output.focused_workspace_idx];
+    for (workspace.window_list.items) |*w| {
+        if (w.former_output_name) |n| {
+            allocator.free(n);
+            w.former_output_name = null;
+        }
+    }
 
     var is_floating = false;
     for (config.window_rules) |rule| {

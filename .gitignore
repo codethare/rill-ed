@@ -4,3 +4,4 @@ zig-pkg/
 /config.zon
 .pi/
 .pi-subagents/
+todo/
