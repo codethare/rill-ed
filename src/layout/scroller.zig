@@ -62,6 +62,8 @@ pub fn apply(
         }
     } else {
         // Focused window is floating: tile non-floating windows from the first one.
+        // Keep anchor at its current.x (no left-edge clamp) so the strip preserves
+        // its scroll position instead of jumping back to the leftmost window.
         const anchor_idx: ?usize = blk: {
             for (workspace.window_list.items, 0..) |*w, i| {
                 if (!w.is_floating) break :blk i;
@@ -71,7 +73,29 @@ pub fn apply(
         if (anchor_idx == null) return;
 
         const anchor = &workspace.window_list.items[anchor_idx.?];
-        focusedWindowLayout(anchor, &rectangle, output, config, y_offset, should_center, tiled_count);
+        const non_exclusive = output.non_exclusive;
+        const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
+        const proportion = if (tiled_count == 1) @as(f32, 1.0) else anchor.proportion;
+        const width_with_gap: i32 = @trunc(base_width * proportion);
+
+        rectangle = .{
+            .width = width_with_gap - config.horizontal_gap,
+            .height = non_exclusive.height - 2 * config.vertical_gap,
+            .x = anchor.current.x,
+            .y = non_exclusive.y + config.vertical_gap + y_offset,
+        };
+
+        if (should_center) {
+            rectangle.x = non_exclusive.x +
+                @divTrunc(non_exclusive.width, 2) - @divTrunc(rectangle.width, 2);
+        }
+
+        if (anchor.is_fullscreen) {
+            rectangle = output.rectangle;
+            rectangle.y += y_offset;
+        }
+
+        anchor.start = anchor.current;
         anchor.finish = rectangle;
 
         var i: usize = (anchor_idx.? + 1) % window_count;
@@ -228,6 +252,74 @@ test "floating window frees its slot; last tiled window fills" {
     try std.testing.expectEqual(@as(f32, 0.5), a.proportion);
 }
 
+test "spawn floating while focus scrolled-right preserves strip position" {
+    const alloc = std.testing.allocator;
+    const config: types.Config = .{};
+    var output: types.Output = .{
+        .river_output = undefined,
+        .river_layer_shell_output = null,
+        .name = null,
+        .workspace_list = [_]types.Workspace{.{}} ** 10,
+        .focused_workspace_idx = 0,
+        .rectangle = .{ .x = 0, .y = 0, .width = 1920, .height = 1080 },
+        .non_exclusive = .{ .x = 0, .y = 0, .width = 1920, .height = 1080 },
+        .is_removed = false,
+    };
+    const ws = &output.workspace_list[0];
+    for (0..3) |_| {
+        try ws.window_list.append(alloc, .{
+            .river_window = undefined,
+            .river_node = undefined,
+            .proportion = 0.34,
+            .is_fullscreen = false,
+            .is_floating = false,
+            .is_closing = false,
+            .floating = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+            .current = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+            .start = null,
+            .finish = null,
+        });
+    }
+    defer ws.window_list.deinit(alloc);
+    ws.focused_window_idx = 2;
+
+    apply(ws, &output, &config, 0);
+    for (ws.window_list.items) |*w| {
+        w.current = w.finish.?;
+        w.sent_current = w.finish.?;
+        w.start = null;
+        w.finish = null;
+    }
+
+    const before_0_x = ws.window_list.items[0].current.x;
+    const before_1_x = ws.window_list.items[1].current.x;
+    const before_2_x = ws.window_list.items[2].current.x;
+
+    try ws.window_list.append(alloc, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_floating = true,
+        .is_closing = false,
+        .floating = .{ .x = 460, .y = 190, .width = 1000, .height = 700 },
+        .current = .{ .x = 460, .y = 190, .width = 1000, .height = 700 },
+        .start = null,
+        .finish = null,
+    });
+    ws.focused_window_idx = 3;
+
+    apply(ws, &output, &config, 0);
+
+    const after_0_finish = ws.window_list.items[0].finish orelse ws.window_list.items[0].current;
+    const after_1_finish = ws.window_list.items[1].finish orelse ws.window_list.items[1].current;
+    const after_2_finish = ws.window_list.items[2].finish orelse ws.window_list.items[2].current;
+
+    try std.testing.expectEqual(before_0_x, after_0_finish.x);
+    try std.testing.expectEqual(before_1_x, after_1_finish.x);
+    try std.testing.expectEqual(before_2_x, after_2_finish.x);
+}
+
 fn snapToEdge(
     window_list: std.ArrayList(types.Window),
     non_exclusive: types.Rectangle,
@@ -277,3 +369,4 @@ fn snapToEdge(
         }
     }
 }
+
