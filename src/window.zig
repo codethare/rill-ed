@@ -128,6 +128,16 @@ fn add(
         }
     }
 
+    // A new window landing here means the user is actively using this
+    // workspace; clear former_output_name so previously-migrated windows
+    // stay on this output instead of jumping back on reconnection.
+    for (workspace.window_list.items) |*w| {
+        if (w.former_output_name) |n| {
+            allocator.free(n);
+            w.former_output_name = null;
+        }
+    }
+
     var is_floating = false;
     for (config.window_rules) |rule| {
         if (rule.matches(pending.app_id, pending.title) and rule.floating) {
