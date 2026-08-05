@@ -37,7 +37,7 @@ pub fn apply(
     const focused_is_floating = workspace.window_list.items[focused_window_idx].is_floating;
     if (!focused_is_floating) {
         const focused_window = &workspace.window_list.items[focused_window_idx];
-        focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center, tiled_count);
+        focusedWindowLayout(focused_window, &rectangle, output, config, y_offset, should_center);
         focused_window.finish = rectangle;
 
         // Unfocused windows to the right of focused
@@ -75,8 +75,7 @@ pub fn apply(
         const anchor = &workspace.window_list.items[anchor_idx.?];
         const non_exclusive = output.non_exclusive;
         const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
-        const proportion = if (tiled_count == 1) @as(f32, 1.0) else anchor.proportion;
-        const width_with_gap: i32 = @trunc(base_width * proportion);
+        const width_with_gap: i32 = @trunc(base_width * anchor.proportion);
 
         rectangle = .{
             .width = width_with_gap - config.horizontal_gap,
@@ -133,14 +132,10 @@ fn focusedWindowLayout(
     config: *const types.Config,
     y_offset: i32,
     should_center: bool,
-    tiled_count: usize,
 ) void {
     const non_exclusive = output.non_exclusive;
     const base_width: f32 = @floatFromInt(non_exclusive.width - config.horizontal_gap);
-    // ponytail: single window fills the usable width; keep stored proportion
-    // untouched so adding a second window restores the prior split sizes.
-    const proportion = if (tiled_count == 1) @as(f32, 1.0) else window.proportion;
-    const width_with_gap: i32 = @trunc(base_width * proportion);
+    const width_with_gap: i32 = @trunc(base_width * window.proportion);
 
     rectangle.* = .{
         .width = width_with_gap - config.horizontal_gap,
@@ -192,7 +187,7 @@ fn unfocusedWindowLayout(
     window.start = window.current;
 }
 
-test "floating window frees its slot; last tiled window fills" {
+test "floating window frees its slot; last tiled window keeps proportion" {
     const alloc = std.testing.allocator;
     const config: types.Config = .{};
     var output: types.Output = .{
@@ -239,12 +234,15 @@ test "floating window frees its slot; last tiled window fills" {
 
     apply(ws, &output, &config, 0);
 
-    // The remaining tiled window fills the usable width instead of leaving
-    // the floated window's slot empty.
+    // The remaining tiled window keeps its stored proportion; new windows
+    // do not change an existing column's width.
     const a = &ws.window_list.items[0];
+    const base_width: f32 = @floatFromInt(output.non_exclusive.width - config.horizontal_gap);
+    const expected_width_with_gap: i32 = @trunc(base_width * a.proportion);
+    const a_rect = a.finish orelse a.current;
     try std.testing.expectEqual(
-        output.non_exclusive.width - 2 * config.horizontal_gap,
-        a.finish.?.width,
+        expected_width_with_gap - config.horizontal_gap,
+        a_rect.width,
     );
     // The floating window keeps its floating rectangle.
     try std.testing.expect(b.finish.?.eql(b.floating));

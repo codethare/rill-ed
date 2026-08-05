@@ -103,6 +103,7 @@
         .{ .key = "j", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_below },
 
         .{ .key = "Escape", .modifiers = .{ .mod4 = true }, .action = .exit },
+        .{ .key = "Escape", .modifiers = .{}, .action = .overview_cancel },
         .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .reload_config },
 
         .{ .key = "t", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"alacritty"} } },

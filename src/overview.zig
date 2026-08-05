@@ -3,7 +3,6 @@ const std = @import("std");
 const wayland = @import("wayland");
 const river = wayland.client.river;
 
-const common = @import("layout/common.zig");
 const types = @import("types.zig");
 const layout = @import("layout.zig");
 
@@ -223,33 +222,15 @@ pub fn applyBorders(
 
     river_seat.clearFocus();
 
-    const unfocused_color = layout.colorToRiver(config.border.unfocused_color);
-    const focused_color = layout.colorToRiver(config.border.focused_color);
-
     const ws = &output.workspace_list[0];
     for (ws.window_list.items, 0..) |*window, idx| {
         window.river_window.exitFullscreen();
 
-        if (idx == state.highlighted) {
-            window.river_window.setBorders(
-                common.edges,
-                config.border.width,
-                focused_color.r,
-                focused_color.g,
-                focused_color.b,
-                focused_color.a,
-            );
+        const is_focused = idx == state.highlighted;
+        layout.applyWindowBorder(window, is_focused, config);
+        if (is_focused) {
             window.river_node.placeTop();
             river_seat.focusWindow(window.river_window);
-        } else {
-            window.river_window.setBorders(
-                common.edges,
-                config.border.width,
-                unfocused_color.r,
-                unfocused_color.g,
-                unfocused_color.b,
-                unfocused_color.a,
-            );
         }
     }
 }

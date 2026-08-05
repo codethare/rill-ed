@@ -283,13 +283,35 @@ pub fn colorToRiver(c: types.Color) struct { r: u32, g: u32, b: u32, a: u32 } {
     };
 }
 
+pub fn applyWindowBorder(
+    window: *types.Window,
+    is_focused: bool,
+    config: *const types.Config,
+) void {
+    const need = window.sent_border_focused == null or
+        window.sent_border_focused.? != is_focused or
+        window.sent_border_width == null or
+        window.sent_border_width.? != config.border.width;
+    if (!need) return;
+
+    const color = if (is_focused) colorToRiver(config.border.focused_color) else colorToRiver(config.border.unfocused_color);
+    window.river_window.setBorders(
+        common.edges,
+        config.border.width,
+        color.r,
+        color.g,
+        color.b,
+        color.a,
+    );
+    window.sent_border_focused = is_focused;
+    window.sent_border_width = config.border.width;
+}
+
 pub fn applyFocusAndBorders(
     wm: *types.WindowManager,
     river_seat: *river.SeatV1,
 ) void {
     const config = wm.getConfig();
-    const unfocused_color = colorToRiver(config.border.unfocused_color);
-    const focused_color = colorToRiver(config.border.focused_color);
 
     const foi = wm.focused_output_idx orelse return;
 
@@ -302,23 +324,7 @@ pub fn applyFocusAndBorders(
                     workspace_idx == output.focused_workspace_idx and
                     window_idx == workspace.focused_window_idx;
 
-                if (window.sent_border_focused == null or
-                    window.sent_border_focused.? != is_focused or
-                    window.sent_border_width == null or
-                    window.sent_border_width.? != config.border.width)
-                {
-                    const color = if (is_focused) focused_color else unfocused_color;
-                    window.river_window.setBorders(
-                        common.edges,
-                        config.border.width,
-                        color.r,
-                        color.g,
-                        color.b,
-                        color.a,
-                    );
-                    window.sent_border_focused = is_focused;
-                    window.sent_border_width = config.border.width;
-                }
+                applyWindowBorder(window, is_focused, config);
 
                 if (!is_focused) continue;
                 window.river_node.placeTop();
@@ -358,6 +364,30 @@ pub fn applyFocusAndBorders(
             river_seat.clearFocus();
         }
         wm.last_focused_window = desired_focus;
+    }
+}
+
+pub fn snapToFinish(wm: *types.WindowManager) void {
+    const config = wm.getConfig();
+
+    for (wm.output_list.items) |*output| {
+        if (output.is_removed) continue;
+        for (output.workspace_list) |workspace| {
+            for (workspace.window_list.items) |*window| {
+                if (window.finish) |finish| {
+                    window.current = finish;
+                    common.placeWindow(window, output.rectangle, config);
+                    if (window.is_fullscreen) {
+                        window.river_window.informFullscreen();
+                    } else {
+                        window.river_window.informNotFullscreen();
+                    }
+                    window.start = null;
+                    window.finish = null;
+                }
+            }
+        }
+        output.is_animating = false;
     }
 }
 

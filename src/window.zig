@@ -88,6 +88,39 @@ pub fn windowListener(
             }
         }
     }
+
+    // The window may belong to a detached (removed) output. A .closed event
+    // for a detached window must still be honored, otherwise the proxy becomes
+    // dangling and ends up in a restored/reclaimed workspace as a dead window.
+    if (event == .closed) {
+        var dit = wm.detached_outputs.iterator();
+        while (dit.next()) |kv| {
+            for (&kv.value_ptr.workspace_list) |*workspace| {
+                for (workspace.window_list.items, 0..) |*window, idx| {
+                    if (window.river_window != river_window) continue;
+
+                    if (workspace.window_list.items.len == 1) {
+                        workspace.focused_window_idx = null;
+                    } else if (workspace.focused_window_idx) |fwi| {
+                        if (idx <= fwi and fwi != 0) {
+                            workspace.focused_window_idx = fwi - 1;
+                        }
+                    }
+
+                    _ = workspace.window_list.orderedRemove(idx);
+                    if (wm.last_focused_window == river_window) {
+                        wm.last_focused_window = null;
+                    }
+                    if (wm.lock_focus == river_window) {
+                        wm.lock_focus = null;
+                    }
+                    std.debug.print("windowListener.closed: removed from detached output '{s}'\n", .{kv.key_ptr.*});
+                    river_window.destroy();
+                    return;
+                }
+            }
+        }
+    }
 }
 
 fn setPendingString(
@@ -121,12 +154,6 @@ fn add(
 ) !void {
     const river_window = pending.river_window;
     const workspace = &output.workspace_list[output.focused_workspace_idx];
-    for (workspace.window_list.items) |*w| {
-        if (w.former_output_name) |n| {
-            allocator.free(n);
-            w.former_output_name = null;
-        }
-    }
 
     // A new window landing here means the user is actively using this
     // workspace; clear former_output_name so previously-migrated windows

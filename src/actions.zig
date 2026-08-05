@@ -43,5 +43,6 @@ pub const KeybindingAction = union(enum) {
     exit: void,
     reload_config: void,
     enter_overview: void,
+    overview_cancel: void,
     spawn: []const []const u8,
 };

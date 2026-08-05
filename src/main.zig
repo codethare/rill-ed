@@ -5,7 +5,8 @@ const Io = std.Io;
 const wayland = @import("wayland");
 const river = wayland.client.river;
 
-const animation = @import("animation.zig");
+const build_options = @import("build_options");
+const animation = if (build_options.enable_animation) @import("animation.zig") else @import("types.zig");
 const config = @import("config.zig");
 const keybinding = @import("keybinding.zig");
 const layout = @import("layout.zig");
@@ -134,8 +135,10 @@ pub fn main(init: std.process.Init) !void {
         }
 
         if (wm.should_exit_loop) break;
-        if (wm.status == .animation) {
-            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
+        if (comptime build_options.enable_animation) {
+            if (wm.status == .animation) {
+                if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
+            }
         }
     }
 }
@@ -274,33 +277,46 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
                 // stay in .layout so the next manage sequence retries focus.
                 wm.needs_refocus = false;
                 if (wm.river_window_manager) |wm_proto| wm_proto.manageDirty();
-            } else {
+            } else if (comptime build_options.enable_animation) {
                 wm.status = .{
                     .animation = Io.Clock.awake.now(io).toMilliseconds(),
                 };
+            } else {
+                layout.snapToFinish(wm);
+                wm.status = .none;
             }
         },
-        .animation => |start_time| {
-            const focused_output_idx = wm.focused_output_idx orelse {
+        .animation => {
+            if (comptime build_options.enable_animation) {
+                const start_time = wm.status.animation;
+                const focused_output_idx = wm.focused_output_idx orelse {
+                    wm.status = .none;
+                    return;
+                };
+                wm.status = animation.apply(
+                    wm.output_list,
+                    focused_output_idx,
+                    wm.getConfig(),
+                    start_time,
+                    Io.Clock.awake.now(io).toMilliseconds(),
+                );
+                // Refresh borders and focus every animation frame so focus changes
+                // that arrive while an animation is active are visible immediately.
+                layout.applyFocusAndBorders(wm, river_seat);
+            } else {
                 wm.status = .none;
-                return;
-            };
-            wm.status = animation.apply(
-                wm.output_list,
-                focused_output_idx,
-                wm.getConfig(),
-                start_time,
-                Io.Clock.awake.now(io).toMilliseconds(),
-            );
-            // Refresh borders and focus every animation frame so focus changes
-            // that arrive while an animation is active are visible immediately.
-            layout.applyFocusAndBorders(wm, river_seat);
+            }
         },
         .overview => {
             overview.applyBorders(wm, river_seat);
-            wm.status = .{
-                .animation = Io.Clock.awake.now(io).toMilliseconds(),
-            };
+            if (comptime build_options.enable_animation) {
+                wm.status = .{
+                    .animation = Io.Clock.awake.now(io).toMilliseconds(),
+                };
+            } else {
+                layout.snapToFinish(wm);
+                wm.status = .none;
+            }
         },
         .pointer_action => {
             const focused_output_idx = wm.focused_output_idx orelse return;

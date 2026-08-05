@@ -59,6 +59,13 @@ Run `rill` in [river's init file](https://codeberg.org/river/river#usage), or di
 | `Super` `Shift` `k` | Move window to output above |
 | `Super` `Shift` `j` | Move window to output below |
 | `Super` `Escape` | Exit river |
+| `Super` `Space` | Enter overview mode |
+| `Escape` | Exit overview mode (in overview) |
+| `Super` `Return` | Select focused window (in overview) |
+| `Super` `Left` / `h` | Move selection left (in overview) |
+| `Super` `Right` / `l` | Move selection right (in overview) |
+| `Super` `Up` / `k` | Move selection up (in overview) |
+| `Super` `Down` / `j` | Move selection down (in overview) |
 | `Super` `r` | Reload config |
 | `Super` `t` | Open alacritty |
 | `XF86AudioRaiseVolume` | Raise volume of PipeWire default audio sink by 5% |
@@ -87,6 +94,7 @@ the same as they do under other window managers.
 * xkbcommon
 ```sh
 zig build --release=safe
+zig build --release=safe -Denable_animation=false   # disable animation
 ```
 
 ### Source Layout

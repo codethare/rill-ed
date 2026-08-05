@@ -11,6 +11,10 @@ pub fn build(b: *std.Build) void {
 
     const strip = b.option(bool, "strip", "Strip debug information") orelse true;
     const pie = b.option(bool, "pie", "Build position independent executable") orelse true;
+    const enable_animation = b.option(bool, "enable_animation", "Enable animation module") orelse true;
+
+    const build_options = b.addOptions();
+    build_options.addOption(bool, "enable_animation", enable_animation);
 
     const scanner = Scanner.create(b, .{});
     scanner.addCustomProtocol(b.path("protocol/river-window-management-v1.xml"));
@@ -36,6 +40,7 @@ pub fn build(b: *std.Build) void {
         .imports = &imports,
         .strip = strip,
     });
+    rill.addOptions("build_options", build_options);
     rill.linkSystemLibrary("wayland-client", .{});
     rill.linkSystemLibrary("xkbcommon", .{});
 

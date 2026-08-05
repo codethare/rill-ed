@@ -18,14 +18,15 @@ pub fn add(
         .river_layer_shell_output = getLayerShellOutput(river_output, wm),
         .workspace_list = [_]types.Workspace{.{}} ** 10,
         .focused_workspace_idx = 0,
-        .rectangle = undefined,
-        .non_exclusive = undefined,
+        .rectangle = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+        .non_exclusive = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
         .is_removed = false,
     };
     const had_previous_output = wm.output_list.items.len > 0;
     try wm.output_list.append(allocator, output);
     const new_idx = wm.output_list.items.len - 1;
     wm.focused_output_idx = new_idx;
+    std.debug.print("output.add: idx={d} name={?s}\n", .{ new_idx, output.name });
     // A newly-connected output becomes focused automatically. Warp the
     // pointer to it on the next layout pass so the cursor follows focus,
     // matching niri and hyprland behavior.
@@ -99,6 +100,12 @@ fn outputListener(
                 for (wm.output_list.items) |o| {
                     if (!o.is_removed) active_count += 1;
                 }
+                std.debug.print("outputListener.removed: idx={d} name={?s} focused={any} active_count={d}\n", .{
+                    idx,
+                    output.name,
+                    if (wm.focused_output_idx) |foi| foi == idx else false,
+                    active_count,
+                });
 
                 // Adjust focus if the removed output was focused.
                 // When surviving outputs exist, switch focus to one.
@@ -167,6 +174,7 @@ fn wlOutputListener(wl_output: *wl.Output, event: wl.Output.Event, wm: *types.Wi
     switch (event) {
         .name => |data| {
             const name = std.mem.span(data.name);
+            std.debug.print("wlOutputListener.name: old={?s} new={s}\n", .{ output.name, name });
             if (output.name) |old_name| wm.allocator.free(old_name);
             output.name = wm.allocator.dupe(u8, name) catch null;
             // Ensure the next manage sequence runs so layout.apply() can

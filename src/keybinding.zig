@@ -67,6 +67,7 @@ pub const default_keybindings = [_]types.Keybinding{
     .{ .key = "j", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_below },
 
     .{ .key = "Escape", .modifiers = .{ .mod4 = true }, .action = .exit },
+    .{ .key = "Escape", .modifiers = .{}, .action = .overview_cancel },
     .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .reload_config },
 
     .{ .key = "t", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = &[_][]const u8{"alacritty"} } },
@@ -600,6 +601,7 @@ fn keybindingPressed(
             wm.status = .exit;
             return;
         },
+        .overview_cancel => {}, // no-op outside overview
         .reload_config => {
             const new_config = config.reload(allocator, io, environ_map, wm.config) orelse {
                 std.debug.print("Config reload failed — keeping current config\n", .{});
@@ -670,6 +672,15 @@ fn overviewKeyPressed(
     for (wm.xkb_binding_list.items) |binding| {
         if (binding.river_xkb_binding != xkb_binding) continue;
 
+        const state = &wm.overview_state.?;
+        const total = state.origins.items.len;
+        const cols = state.columns;
+        const rows = (total + cols - 1) / cols;
+        const cur = state.highlighted;
+        const row = cur / cols;
+        const col = cur % cols;
+        var next = cur;
+
         switch (binding.action) {
             // Toggle: pressing enter_overview again exits overview.
             .enter_overview => {
@@ -678,14 +689,41 @@ fn overviewKeyPressed(
                 wm.status = .layout;
                 return;
             },
-            // Escape / exit still cancels.
-            .exit => {
+            // Escape / exit cancels overview.
+            .exit, .overview_cancel => {
                 overview.cancel(wm.allocator, wm);
+                layout.update(wm.output_list, wm.getConfig());
+                wm.status = .layout;
+                return;
+            },
+            // Directional navigation: reuse the already-bound arrow keys and hjkl.
+            .focus_window_left, .focus_output_left => {
+                if (col > 0) next = cur - 1;
+            },
+            .focus_window_right, .focus_output_right => {
+                if (col + 1 < cols) next = cur + 1;
+            },
+            .focus_workspace_above, .focus_output_above => {
+                if (row > 0) next = cur - cols;
+            },
+            .focus_workspace_below, .focus_output_below => {
+                if (row + 1 < rows) next = cur + cols;
+            },
+            // Super+Return in overview selects the highlighted window.
+            .spawn => {
+                overview.select(wm.allocator, wm);
                 layout.update(wm.output_list, wm.getConfig());
                 wm.status = .layout;
                 return;
             },
             else => return,
         }
+
+        if (next != cur) {
+            state.highlighted = next;
+            wm.status = .overview;
+            if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
+        }
+        return;
     }
 }
