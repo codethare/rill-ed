@@ -105,16 +105,31 @@ pub fn apply(
             } else {
                 // No surviving outputs — preserve workspaces so they can be
                 // restored when an output with the same name reappears.
-                if (output.name) |name| {
+                detach: {
+                    const name = output.name orelse break :detach;
+                    const key = allocator.dupe(u8, name) catch break :detach;
                     const detached = types.DetachedOutput{
                         .workspace_list = output.workspace_list,
                         .focused_workspace_idx = output.focused_workspace_idx,
                     };
-                    // On success: workspaces move to detached_outputs; zero source.
-                    // On OOM: workspaces stay in output; cleanup loop below handles them.
-                    if (wm.detached_outputs.put(name, detached)) {
-                        output.workspace_list = [_]types.Workspace{.{}} ** 10;
-                    } else |_| {}
+                    // fetchPut transfers ownership of the key dupe to the
+                    // hash map. On replacement (duplicate key), the old
+                    // entry is cleaned up — its key freed and windows closed.
+                    var maybe_old = wm.detached_outputs.fetchPut(key, detached) catch {
+                        allocator.free(key);
+                        break :detach; // OOM: workspaces stay in output for cleanup
+                    };
+                    if (maybe_old) |*old_kv| {
+                        allocator.free(old_kv.key);
+                        for (&old_kv.value.workspace_list) |*ws| {
+                            for (ws.window_list.items) |w| {
+                                if (w.former_output_name) |n| allocator.free(n);
+                                w.river_window.close();
+                            }
+                            ws.window_list.deinit(allocator);
+                        }
+                    }
+                    output.workspace_list = [_]types.Workspace{.{}} ** 10;
                 }
             }
 
@@ -200,6 +215,54 @@ pub fn apply(
                 }
             }
             restored_any = true;
+        }
+    }
+
+    // Fallback: any detached outputs that were NOT matched by name (e.g.
+    // HDMI was unplugged, only eDP reappeared) get migrated to the first
+    // active output with valid dimensions so windows are not left orphaned.
+    // Defer until the output's dimensions arrive if not yet known.
+    if (wm.detached_outputs.count() > 0) {
+        var fallback: ?*types.Output = null;
+        for (wm.output_list.items) |*o| {
+            if (!o.is_removed and o.rectangle.width > 0 and o.rectangle.height > 0) {
+                fallback = o;
+                break;
+            }
+        }
+        if (fallback) |target| {
+            // Collect keys first — can't mutate hash map during iteration.
+            var keys: std.ArrayList([]const u8) = .empty;
+            defer keys.deinit(allocator);
+            {
+                var dit = wm.detached_outputs.iterator();
+                while (dit.next()) |kv| {
+                    keys.append(allocator, kv.key_ptr.*) catch break;
+                }
+            }
+            for (keys.items) |k| {
+                var removed = wm.detached_outputs.fetchRemove(k) orelse continue;
+                for (&removed.value.workspace_list, &target.workspace_list) |*src_ws, *dst_ws| {
+                    for (src_ws.window_list.items) |w| {
+                        if (w.is_fullscreen) w.river_window.exitFullscreen();
+                    }
+                    while (src_ws.window_list.items.len > 0) {
+                        var window = src_ws.window_list.orderedRemove(0);
+                        if (window.former_output_name == null) {
+                            window.former_output_name = allocator.dupe(u8, removed.key) catch null;
+                        }
+                        dst_ws.window_list.append(allocator, window) catch {
+                            if (window.former_output_name) |n| allocator.free(n);
+                            window.river_window.destroy();
+                        };
+                        if (dst_ws.focused_window_idx == null) {
+                            dst_ws.focused_window_idx = dst_ws.window_list.items.len - 1;
+                        }
+                    }
+                }
+                allocator.free(removed.key);
+                restored_any = true;
+            }
         }
     }
 
