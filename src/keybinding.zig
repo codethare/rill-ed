@@ -302,7 +302,8 @@ fn keybindingPressed(
                     output.non_exclusive,
                     wm.getConfig(),
                 );
-                window.current = window.floating;
+                // Don't snap current to floating: layout.update sets
+                // start=current, finish=floating so the toggle animates.
             }
         },
         .focus_workspace_above => {

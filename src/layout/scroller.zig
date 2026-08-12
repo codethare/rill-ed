@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const types = @import("../types.zig");
+const common = @import("common.zig");
 
 pub fn apply(
     workspace: *types.Workspace,
@@ -113,16 +114,7 @@ pub fn apply(
         config.horizontal_gap,
     );
 
-    for (workspace.window_list.items) |*window| {
-        const finish = window.finish orelse continue;
-        if (finish.eql(window.current) and
-            window.sent_current != null and
-            window.sent_current.?.eql(window.current))
-        {
-            window.start = null;
-            window.finish = null;
-        }
-    }
+    for (workspace.window_list.items) |*window| common.skipIfAtRest(window);
 }
 
 fn focusedWindowLayout(
@@ -226,11 +218,11 @@ test "floating window frees its slot; last tiled window keeps proportion" {
         w.finish = null;
     }
 
-    // Toggle the focused window floating (mirrors the keybinding handler).
+    // Toggle the focused window floating (mirrors the keybinding handler:
+    // current is NOT snapped to floating, so the layout animates).
     const b = &ws.window_list.items[1];
     b.is_floating = true;
     b.floating = .{ .x = 460, .y = 190, .width = 1000, .height = 700 };
-    b.current = b.floating;
 
     apply(ws, &output, &config, 0);
 
