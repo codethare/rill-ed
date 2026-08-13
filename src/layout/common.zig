@@ -36,6 +36,17 @@ pub fn centerRectangle(non_exclusive: types.Rectangle, config: *const types.Conf
     };
 }
 
+pub fn skipIfAtRest(window: *types.Window) void {
+    const finish = window.finish orelse return;
+    if (finish.eql(window.current) and
+        window.sent_current != null and
+        window.sent_current.?.eql(window.current))
+    {
+        window.start = null;
+        window.finish = null;
+    }
+}
+
 pub fn placeWindow(
     window: *types.Window,
     output_rectangle: types.Rectangle,
