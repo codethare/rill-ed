@@ -94,7 +94,8 @@ the same as they do under other window managers.
 * xkbcommon
 ```sh
 zig build --release=safe
-zig build --release=safe -Denable_animation=false   # disable animation
+zig build --release=safe -Danimation=false   # disable animation
+zig build --release=safe -Dkwim=false      # disable kwim hotplug integration
 ```
 
 ### Source Layout

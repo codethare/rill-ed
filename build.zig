@@ -11,19 +11,31 @@ pub fn build(b: *std.Build) void {
 
     const strip = b.option(bool, "strip", "Strip debug information") orelse true;
     const pie = b.option(bool, "pie", "Build position independent executable") orelse true;
-    const enable_animation = b.option(bool, "enable_animation", "Enable animation module") orelse true;
+    const animation = b.option(bool, "animation", "Enable animation module") orelse true;
+    const kwim = b.option(bool, "kwim", "Enable kwim hotplug integration") orelse true;
 
     const build_options = b.addOptions();
-    build_options.addOption(bool, "enable_animation", enable_animation);
+    build_options.addOption(bool, "animation", animation);
+    build_options.addOption(bool, "kwim", kwim);
 
     const scanner = Scanner.create(b, .{});
     scanner.addCustomProtocol(b.path("protocol/river-window-management-v1.xml"));
     scanner.addCustomProtocol(b.path("protocol/river-xkb-bindings-v1.xml"));
     scanner.addCustomProtocol(b.path("protocol/river-layer-shell-v1.xml"));
+    if (kwim) {
+        scanner.addCustomProtocol(b.path("protocol/river-input-management-v1.xml"));
+        scanner.addCustomProtocol(b.path("protocol/river-libinput-config-v1.xml"));
+        scanner.addCustomProtocol(b.path("protocol/river-xkb-config-v1.xml"));
+    }
     scanner.generate("wl_output", 4);
     scanner.generate("river_window_manager_v1", 4);
     scanner.generate("river_xkb_bindings_v1", 1);
     scanner.generate("river_layer_shell_v1", 1);
+    if (kwim) {
+        scanner.generate("river_input_manager_v1", 2);
+        scanner.generate("river_libinput_config_v1", 2);
+        scanner.generate("river_xkb_config_v1", 2);
+    }
 
     const wayland = b.createModule(.{ .root_source_file = scanner.result });
     const xkbcommon = b.dependency("xkbcommon", .{}).module("xkbcommon");

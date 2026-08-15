@@ -6,7 +6,7 @@ const wayland = @import("wayland");
 const river = wayland.client.river;
 
 const build_options = @import("build_options");
-const animation = if (build_options.enable_animation) @import("animation.zig") else @import("types.zig");
+const animation = if (build_options.animation) @import("animation.zig") else @import("types.zig");
 const config = @import("config.zig");
 const keybinding = @import("keybinding.zig");
 const layout = @import("layout.zig");
@@ -16,6 +16,7 @@ const seat = @import("seat.zig");
 const spawn = @import("spawn.zig");
 const types = @import("types.zig");
 const window = @import("window.zig");
+const kwim_hotplug = if (build_options.kwim) @import("kwim_hotplug.zig") else struct {};
 
 pub fn main(init: std.process.Init) !void {
     // Auto-reap children without breaking waitpid() in spawned programs.
@@ -97,12 +98,16 @@ pub fn main(init: std.process.Init) !void {
             // can respond to them without delay.
             _ = display.flush();
 
+            const now = Io.Clock.awake.now(wm.io).toMilliseconds();
+            wm.timer_queue.runDue(now);
+
             var fds = [_]std.posix.pollfd{
                 .{ .fd = display.getFd(), .events = std.posix.POLL.IN, .revents = 0 },
             };
             // 5-second timeout so we don't block forever when the
             // compositor is unresponsive (e.g. after hibernate/resume).
-            const poll_ret = std.posix.poll(&fds, 5000) catch |err| {
+            const timeout_ms = wm.timer_queue.timeoutMs(now, 5000);
+            const poll_ret = std.posix.poll(&fds, timeout_ms) catch |err| {
                 display.cancelRead();
                 std.debug.print("Window manager poll error: {}\n", .{err});
                 continue;
@@ -135,7 +140,7 @@ pub fn main(init: std.process.Init) !void {
         }
 
         if (wm.should_exit_loop) break;
-        if (comptime build_options.enable_animation) {
+        if (comptime build_options.animation) {
             if (wm.status == .animation) {
                 if (wm.river_window_manager) |wmgr| wmgr.manageDirty();
             }
@@ -160,6 +165,23 @@ fn registryListener(
             } else if (std.mem.eql(u8, interface_name, "river_layer_shell_v1")) {
                 wm.river_layer_shell =
                     registry.bind(global.name, river.LayerShellV1, 1) catch null;
+            } else if (comptime build_options.kwim) {
+                if (std.mem.eql(u8, interface_name, "river_input_manager_v1")) {
+                    const input_manager = registry.bind(global.name, river.InputManagerV1, 2) catch null;
+                    if (input_manager) |mgr| {
+                        mgr.setListener(*types.WindowManager, kwim_hotplug.inputManagerListener, wm);
+                    }
+                } else if (std.mem.eql(u8, interface_name, "river_libinput_config_v1")) {
+                    const libinput_config = registry.bind(global.name, river.LibinputConfigV1, 2) catch null;
+                    if (libinput_config) |cfg| {
+                        cfg.setListener(*types.WindowManager, kwim_hotplug.libinputConfigListener, wm);
+                    }
+                } else if (std.mem.eql(u8, interface_name, "river_xkb_config_v1")) {
+                    const xkb_config = registry.bind(global.name, river.XkbConfigV1, 2) catch null;
+                    if (xkb_config) |cfg| {
+                        cfg.setListener(*types.WindowManager, kwim_hotplug.xkbConfigListener, wm);
+                    }
+                }
             }
         },
         .global_remove => {},
@@ -277,7 +299,7 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
                 // stay in .layout so the next manage sequence retries focus.
                 wm.needs_refocus = false;
                 if (wm.river_window_manager) |wm_proto| wm_proto.manageDirty();
-            } else if (comptime build_options.enable_animation) {
+            } else if (comptime build_options.animation) {
                 wm.status = .{
                     .animation = Io.Clock.awake.now(io).toMilliseconds(),
                 };
@@ -287,7 +309,7 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
             }
         },
         .animation => {
-            if (comptime build_options.enable_animation) {
+            if (comptime build_options.animation) {
                 const start_time = wm.status.animation;
                 const focused_output_idx = wm.focused_output_idx orelse {
                     wm.status = .none;
@@ -309,7 +331,7 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
         },
         .overview => {
             overview.applyBorders(wm, river_seat);
-            if (comptime build_options.enable_animation) {
+            if (comptime build_options.animation) {
                 wm.status = .{
                     .animation = Io.Clock.awake.now(io).toMilliseconds(),
                 };

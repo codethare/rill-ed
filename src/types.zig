@@ -6,6 +6,8 @@ const wayland = @import("wayland");
 const river = wayland.client.river;
 const wl = wayland.client.wl;
 
+const timer = @import("timer.zig");
+
 pub const actions = @import("actions.zig");
 pub const Button = actions.Button;
 pub const PointerAction = actions.PointerAction;
@@ -77,6 +79,14 @@ pub const WindowManager = struct {
     /// the next layout pass warps the pointer to the new output so the cursor
     /// follows focus, matching niri and hyprland behavior.
     needs_pointer_warp: bool = false,
+
+    /// True when a kwim hotplug respawn has been scheduled but not yet run.
+    /// Used to debounce multiple input-device events into one spawn.
+    kwim_hotplug_pending: bool = false,
+
+    /// Scheduled delayed tasks (e.g. hotplug debounce). The main loop uses the
+    /// earliest deadline to compute the poll timeout.
+    timer_queue: timer.Queue(*WindowManager) = .empty,
 
     pub fn getConfig(self: *WindowManager) *const Config {
         return self.config;
@@ -169,6 +179,8 @@ pub const WindowManager = struct {
             }
         }
         self.output_list.deinit(self.allocator);
+
+        self.timer_queue.deinit(self.allocator);
 
         self.registry.destroy();
     }
