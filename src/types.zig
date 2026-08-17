@@ -328,7 +328,7 @@ pub const Config = struct {
     window_rules: []const WindowRule = &.{},
 };
 
-/// Rule matching windows by exact app_id/title. All set fields must match.
+/// Rule matching windows by exact app_id and glob title. All set fields must match.
 pub const WindowRule = struct {
     app_id: ?[:0]const u8 = null,
     title: ?[:0]const u8 = null,
@@ -340,11 +340,37 @@ pub const WindowRule = struct {
             if (app_id == null or !std.mem.eql(u8, a, app_id.?)) return false;
         }
         if (rule.title) |t| {
-            if (title == null or !std.mem.eql(u8, t, title.?)) return false;
+            if (title == null or !globMatch(t, title.?)) return false;
         }
         return true;
     }
 };
+
+/// Glob match supporting `*` (any run, including empty) and `?` (single char).
+fn globMatch(pattern: []const u8, text: []const u8) bool {
+    var p: usize = 0;
+    var t: usize = 0;
+    var star: ?usize = null;
+    var match: usize = 0;
+    while (t < text.len) {
+        if (p < pattern.len and (pattern[p] == '?' or pattern[p] == text[t])) {
+            p += 1;
+            t += 1;
+        } else if (p < pattern.len and pattern[p] == '*') {
+            star = p;
+            match = t;
+            p += 1;
+        } else if (star) |s| {
+            p = s + 1;
+            match += 1;
+            t = match;
+        } else {
+            return false;
+        }
+    }
+    while (p < pattern.len and pattern[p] == '*') p += 1;
+    return p == pattern.len;
+}
 
 test "WindowRule.matches" {
     const r: WindowRule = .{ .app_id = "footclient", .floating = true };
@@ -356,6 +382,19 @@ test "WindowRule.matches" {
     try std.testing.expect(!both.matches("a", "x"));
     const empty: WindowRule = .{ .floating = true };
     try std.testing.expect(!empty.matches("a", "t"));
+    const glob: WindowRule = .{ .title = "file-*" };
+    try std.testing.expect(glob.matches(null, "file-a.txt"));
+    try std.testing.expect(glob.matches(null, "file-"));
+    try std.testing.expect(!glob.matches(null, "dir/file-a.txt"));
+    const q: WindowRule = .{ .title = "file-?.txt" };
+    try std.testing.expect(q.matches(null, "file-a.txt"));
+    try std.testing.expect(!q.matches(null, "file-ab.txt"));
+    const star_only: WindowRule = .{ .title = "*" };
+    try std.testing.expect(star_only.matches(null, ""));
+    try std.testing.expect(star_only.matches(null, "anything"));
+    const backtrack: WindowRule = .{ .title = "a*b" };
+    try std.testing.expect(backtrack.matches(null, "aXbYb"));
+    try std.testing.expect(!backtrack.matches(null, "aXbY"));
 }
 
 const Border = struct { width: u8, focused_color: Color, unfocused_color: Color };

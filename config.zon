@@ -30,11 +30,13 @@
         // .{ "wl-clip-persist", "--clipboard", "both" },
     },
 
-    // Rules for windows, matched by exact app_id and/or title (all set
-    // fields must match). Matched when the window is first mapped.
+    // Rules for windows, matched by exact app_id and/or glob title (all set
+    // fields must match). Title supports `*` and `?`. Matched when the
+    // window is first mapped.
     .window_rules = .{
         // .{ .app_id = "footclient", .floating = true },
         // .{ .title = "Picture-in-Picture", .floating = true },
+        // .{ .title = "file-*", .floating = true },
     },
 
     .keybindings = .{
