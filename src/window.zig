@@ -173,15 +173,18 @@ fn add(
         }
     }
 
-    // New windows start at the right edge (initialRectangle) and animate to
-    // their final slot. Floating windows keep that slide-in: they start at
-    // the right edge and interpolate to the centered floating rect via the
-    // start/finish mechanism in animation.zig.
-    const start_rect = layout.initialRectangle(output.non_exclusive, config);
+    // New windows start just off the right edge and slide into their slot
+    // (or centered floating rect) via the start/finish mechanism in
+    // animation.zig. The off-screen start keeps start != finish even when
+    // the slot is the rightmost position, so the slide-in is always visible.
+    const rightmost = layout.initialRectangle(output.non_exclusive, config);
     const floating_rect = if (workspace.layout == .floating or is_floating)
         layout.centerRectangle(output.non_exclusive, config)
     else
-        start_rect;
+        rightmost;
+
+    var start_rect = rightmost;
+    start_rect.x = output.non_exclusive.x + output.non_exclusive.width;
 
     const window = types.Window{
         .river_window = river_window,

@@ -7,6 +7,7 @@ const xkbcommon = @import("xkbcommon");
 const river = wayland.client.river;
 
 const config = @import("config.zig");
+const common = @import("layout/common.zig");
 const layout = @import("layout.zig");
 const overview = @import("overview.zig");
 const spawn = @import("spawn.zig");
@@ -19,11 +20,19 @@ pub const default_keybindings = [_]types.Keybinding{
     .{ .key = "minus", .modifiers = .{ .mod4 = true }, .action = .{ .adjust_window_width = -0.1 } },
     .{ .key = "equal", .modifiers = .{ .mod4 = true }, .action = .{ .adjust_window_width = 0.1 } },
     .{ .key = "BackSpace", .modifiers = .{ .mod4 = true }, .action = .{ .set_window_width = 0.5 } },
+    .{ .key = "minus", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .adjust_floating_window_size = -0.1 } },
+    .{ .key = "equal", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .adjust_floating_window_size = 0.1 } },
+    .{ .key = "BackSpace", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .set_floating_window_height = 0.5 } },
 
     .{ .key = "Left", .modifiers = .{ .mod4 = true }, .action = .focus_window_left },
     .{ .key = "Right", .modifiers = .{ .mod4 = true }, .action = .focus_window_right },
     .{ .key = "Left", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_left },
     .{ .key = "Right", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_right },
+
+    .{ .key = "Left", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_left },
+    .{ .key = "Right", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_right },
+    .{ .key = "Up", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_up },
+    .{ .key = "Down", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_down },
 
     .{ .key = "v", .modifiers = .{ .mod4 = true }, .action = .toggle_workspace_floating },
 
@@ -111,7 +120,7 @@ pub fn setupKeybindings(allocator: Allocator, wm: *types.WindowManager) !void {
 
     for (wm.getConfig().keybindings) |keybinding| {
         const keysym = parseKey(keybinding.key) orelse {
-            std.debug.print("Failed to parse key\n", .{});
+            std.debug.print("Failed to parse key '{s}'\n", .{keybinding.key});
             continue;
         };
         const xkb_binding = try xkb_bindings.getXkbBinding(
@@ -208,21 +217,62 @@ fn keybindingPressed(
             window.proportion = if (window.proportion == 1.0) 0.5 else 1.0;
         },
         .adjust_window_width => |increment| {
-            if (workspace.is_floating) return;
             const window = ws.focusedWindow() orelse return;
             if (window.is_fullscreen) return;
 
-            const gap = wm.getConfig().horizontal_gap;
-            const base_width: f32 = @floatFromInt(output.non_exclusive.width - gap);
-            const width_with_gap: i32 = @trunc(base_width * (window.proportion + increment));
-            if (width_with_gap - gap < 2 * wm.getConfig().border.width) return;
+            if (window.is_floating) {
+                const base_width: f32 = @floatFromInt(output.non_exclusive.width);
+                const dw: i32 = @trunc(base_width * increment);
+                const min_size: i32 = 2 * @as(i32, wm.getConfig().border.width);
+                common.resizeFloatingWindow(window, output, dw, 0, min_size);
+            } else {
+                const gap = wm.getConfig().horizontal_gap;
+                const base_width: f32 = @floatFromInt(output.non_exclusive.width - gap);
+                const width_with_gap: i32 = @trunc(base_width * (window.proportion + increment));
+                if (width_with_gap - gap < 2 * wm.getConfig().border.width) return;
 
-            window.proportion += increment;
+                window.proportion += increment;
+            }
         },
         .set_window_width => |proportion| {
-            if (workspace.is_floating) return;
             const window = ws.focusedWindow() orelse return;
-            window.proportion = proportion;
+            if (window.is_floating) {
+                if (window.is_fullscreen) return;
+                const base_width: f32 = @floatFromInt(output.non_exclusive.width);
+                const w: i32 = @trunc(base_width * proportion);
+                const min_size: i32 = 2 * @as(i32, wm.getConfig().border.width);
+                window.floating.width = std.math.clamp(
+                    w,
+                    min_size,
+                    output.rectangle.x + output.rectangle.width - window.floating.x,
+                );
+            } else {
+                window.proportion = proportion;
+            }
+        },
+        .adjust_floating_window_size => |increment| {
+            const window = ws.focusedWindow() orelse return;
+            if (!window.is_floating) return;
+            if (window.is_fullscreen) return;
+            const base_width: f32 = @floatFromInt(output.non_exclusive.width);
+            const base_height: f32 = @floatFromInt(output.non_exclusive.height);
+            const dw: i32 = @trunc(base_width * increment);
+            const dh: i32 = @trunc(base_height * increment);
+            const min_size: i32 = 2 * @as(i32, wm.getConfig().border.width);
+            common.scaleFloatingWindow(window, output, dw, dh, min_size);
+        },
+        .set_floating_window_height => |proportion| {
+            const window = ws.focusedWindow() orelse return;
+            if (!window.is_floating) return;
+            if (window.is_fullscreen) return;
+            const base_height: f32 = @floatFromInt(output.non_exclusive.height);
+            const h: i32 = @trunc(base_height * proportion);
+            const min_size: i32 = 2 * @as(i32, wm.getConfig().border.width);
+            window.floating.height = std.math.clamp(
+                h,
+                min_size,
+                output.rectangle.y + output.rectangle.height - window.floating.y,
+            );
         },
         .focus_window_left => {
             if (workspace.is_floating) return;
@@ -255,7 +305,6 @@ fn keybindingPressed(
             continue :action_switch .focus_window_right;
         },
         .move_window_left => {
-            if (workspace.is_floating) return;
             const window_idx = workspace.focused_window_idx orelse return;
             if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == 0) return;
@@ -267,7 +316,6 @@ fn keybindingPressed(
             workspace.focused_window_idx = window_idx - 1;
         },
         .move_window_right => {
-            if (workspace.is_floating) return;
             const window_idx = workspace.focused_window_idx orelse return;
             if (window_idx >= workspace.window_list.items.len) return;
             if (window_idx == workspace.window_list.items.len - 1) return;
@@ -277,6 +325,26 @@ fn keybindingPressed(
                 &workspace.window_list.items[window_idx + 1],
             );
             workspace.focused_window_idx = window_idx + 1;
+        },
+        .move_floating_window_left => {
+            const window = ws.focusedWindow() orelse return;
+            if (!window.is_floating) return;
+            common.moveFloatingWindow(window, output, -common.floating_move_step, 0);
+        },
+        .move_floating_window_right => {
+            const window = ws.focusedWindow() orelse return;
+            if (!window.is_floating) return;
+            common.moveFloatingWindow(window, output, common.floating_move_step, 0);
+        },
+        .move_floating_window_up => {
+            const window = ws.focusedWindow() orelse return;
+            if (!window.is_floating) return;
+            common.moveFloatingWindow(window, output, 0, -common.floating_move_step);
+        },
+        .move_floating_window_down => {
+            const window = ws.focusedWindow() orelse return;
+            if (!window.is_floating) return;
+            common.moveFloatingWindow(window, output, 0, common.floating_move_step);
         },
         .move_window_left_or_to_output_left => {
             const window_idx = workspace.focused_window_idx orelse return;

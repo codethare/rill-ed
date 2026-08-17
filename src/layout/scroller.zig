@@ -310,6 +310,52 @@ test "spawn floating while focus scrolled-right preserves strip position" {
     try std.testing.expectEqual(before_2_x, after_2_finish.x);
 }
 
+test "new tiled window slides in from off-screen right edge" {
+    const alloc = std.testing.allocator;
+    const config: types.Config = .{};
+    var output: types.Output = .{
+        .river_output = undefined,
+        .river_layer_shell_output = null,
+        .name = null,
+        .workspace_list = [_]types.Workspace{.{}} ** 10,
+        .focused_workspace_idx = 0,
+        .rectangle = .{ .x = 0, .y = 0, .width = 1920, .height = 1080 },
+        .non_exclusive = .{ .x = 0, .y = 0, .width = 1920, .height = 1080 },
+        .is_removed = false,
+    };
+    const ws = &output.workspace_list[0];
+
+    // Mirrors window.add(): current starts just past the right edge so the
+    // window slides into its on-screen slot instead of popping in.
+    var start_rect = common.initialRectangle(output.non_exclusive, &config);
+    start_rect.x = output.non_exclusive.x + output.non_exclusive.width;
+
+    try ws.window_list.append(alloc, .{
+        .river_window = undefined,
+        .river_node = undefined,
+        .proportion = 0.5,
+        .is_fullscreen = false,
+        .is_floating = false,
+        .is_closing = false,
+        .floating = start_rect,
+        .current = start_rect,
+        .start = null,
+        .finish = null,
+    });
+    defer ws.window_list.deinit(alloc);
+    ws.focused_window_idx = 0;
+
+    apply(ws, &output, &config, 0);
+
+    const w = &ws.window_list.items[0];
+    try std.testing.expect(w.start != null and w.finish != null);
+    // start != finish so animation.zig interpolates the slide-in.
+    try std.testing.expect(!w.start.?.eql(w.finish.?));
+    // Finish is the on-screen rightmost slot, not the off-screen start.
+    try std.testing.expect(w.finish.?.x < output.non_exclusive.x + output.non_exclusive.width);
+    try std.testing.expect(w.finish.?.x >= output.non_exclusive.x);
+}
+
 fn snapToEdge(
     window_list: std.ArrayList(types.Window),
     non_exclusive: types.Rectangle,

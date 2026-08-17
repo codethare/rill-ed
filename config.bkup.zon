@@ -1,8 +1,8 @@
 .{
     // Gap between windows and the output's top/bottom edge
-    .vertical_gap = 9,
+    .vertical_gap = 0,
     // Gap between adjacent windows
-    .horizontal_gap = 9,
+    .horizontal_gap = 0,
     // Default proportion of the output's available width that a window occupies when spawned
     .default_window_width = 0.5,
 
@@ -13,11 +13,11 @@
     // Disable client side decorations
     .no_csd = true,
     // Duration of animations, in milliseconds
-    .animation_duration = 200,
+    // .animation_duration = 168,
 
     .border = .{
-        .width = 3,
-        .focused_color = .{ .r = 2, .g = 3, .b = 45, .a = 1.0 },
+        .width = 2,
+        .focused_color = .{ .r = 128, .g = 128, .b = 128, .a = 0.7 },
         .unfocused_color = .{ .r = 27, .g = 29, .b = 43, .a = 0.816 },
     },
 
@@ -26,14 +26,12 @@
     .cursor = null,
 
     .spawn_at_startup = .{
-        // .{"awww-daemon"},
-        // .{ "wl-clip-persist", "--clipboard", "both" },
         .{ "kanshi" },
         .{ "swayidle" },
         .{ "wl-paste", "--watch", "cliphist", "store" },
         .{ "fnott" },
         .{ "kwim" },
-        .{ "sh", "-c", "${HOME}/.local/bin/rel/sema" },
+        .{ "sh", "-c", "${HOME}/.bin/sema" },
         .{ "sh", "-c", "${HOME}/.local/bin/bwrap/fcitx-daemon start" },
         .{ "sh", "-c", "${HOME}/.local/bin/foots" },
     },
@@ -57,27 +55,15 @@
         // Set focused window's width to 0.5 of the output's available width
         .{ .key = "BackSpace", .modifiers = .{ .mod4 = true }, .action = .{ .set_window_width = 0.5 } },
 
-        // Floating window scale (fraction of output size, expands/shrinks on all four sides)
-        .{ .key = "minus", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .adjust_floating_window_size = -0.1 } },
-        .{ .key = "equal", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .adjust_floating_window_size = 0.1 } },
-        .{ .key = "BackSpace", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .set_floating_window_height = 0.5 } },
-
         .{ .key = "h", .modifiers = .{ .mod4 = true }, .action = .focus_window_left },
         .{ .key = "l", .modifiers = .{ .mod4 = true }, .action = .focus_window_right },
         .{ .key = "h", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_left },
         .{ .key = "l", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_right },
 
-        // Floating move (50px steps)
-        .{ .key = "h", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_left },
-        .{ .key = "l", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_right },
-        .{ .key = "k", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_up },
-        .{ .key = "j", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_down },
-
-        .{ .key = "v", .modifiers = .{ .mod4 = true }, .action = .toggle_workspace_floating },
 
         .{ .key = "k", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_above },
         .{ .key = "j", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_below },
-        .{ .key = "grave", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_previous },
+        .{ .key = "Tab", .modifiers = .{ .mod4 = true }, .action = .focus_workspace_previous },
 
         .{ .key = "1", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 1 } },
         .{ .key = "2", .modifiers = .{ .mod4 = true }, .action = .{ .focus_workspace_number = 2 } },
@@ -104,32 +90,36 @@
         .{ .key = "9", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 9 } },
         .{ .key = "0", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .move_window_to_workspace_number = 10 } },
 
-        .{ .key = "Left", .modifiers = .{ .mod4 = true }, .action = .focus_output_left },
-        .{ .key = "Right", .modifiers = .{ .mod4 = true }, .action = .focus_output_right },
+        .{ .key = "comma", .modifiers = .{ .mod4 = true }, .action = .focus_output_left },
+        .{ .key = "period", .modifiers = .{ .mod4 = true }, .action = .focus_output_right },
         .{ .key = "Up", .modifiers = .{ .mod4 = true }, .action = .focus_output_above },
         .{ .key = "Down", .modifiers = .{ .mod4 = true }, .action = .focus_output_below },
 
-        .{ .key = "Left", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_left },
-        .{ .key = "Right", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_right },
+        .{ .key = "comma", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_left },
+        .{ .key = "period", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_right },
         .{ .key = "Up", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_above },
         .{ .key = "Down", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_to_output_below },
 
-        .{ .key = "Escape", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .exit },
-        .{ .key = "Escape", .modifiers = .{}, .action = .overview_cancel },
+        .{ .key = "Escape", .modifiers = .{ .mod4 = true, .mod1 = true, .ctrl = true }, .action = .exit },
         .{ .key = "r", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .reload_config },
 
         .{ .key = "Return", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"footclient"} } },
         .{ .key = "t", .modifiers = .{ .mod1 = true, .ctrl = true }, .action = .{ .spawn = .{"alacritty"} } },
-        .{ .key = "Space", .modifiers = .{ .mod4 = true }, .action = .enter_overview },
-        .{ .key = "p", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/wmenu-run-color"} } },
+        .{ .key = "w", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .spawn = .{"waylock", "-init-color", "0x000000", "-input-color", "0x005577", "-fail-color", "0xcc3333"} } },
+        .{ .key = "p", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/wmenu-run-color"} } },
 
-        .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"footclient sh -c 'sleep 0.03 && lf'"} } },
-        .{ .key = "q", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/qbz"} } },
-        .{ .key = "a", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/address"} } },
-        .{ .key = "a", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/address -q"} } },
-        .{ .key = "a", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/address --record"} } },
-        .{ .key = "a", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .spawn = .{"${HOME}/.local/bin/address --multi"} } },
+        .{ .key = "r", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"footclient", "sh", "-c", "sleep 0.03 && lf"} } },
+        .{ .key = "b", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"footclient", "btm", "--battery"} } },
+        .{ .key = "q", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/qbz"} } },
+        .{ .key = "a", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/address"} } },
+        .{ .key = "a", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/address", "-q"} } },
+        .{ .key = "a", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/address", "--record"} } },
+        .{ .key = "a", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/address", "--multi"} } },
 
+        .{ .key = "n", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .spawn = .{"fnottctl", "dismiss"} } },
+        .{ .key = "e", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/susp"} } },
+        .{ .key = "e", .modifiers = .{ .mod4 = true, .shift = true }, .action = .{ .spawn = .{"/home/goy0/.local/bin/hibe"} } },
+        .{ .key = "F11", .modifiers = .{ .mod4 = true }, .action = .{ .spawn = .{"sh", "-c", "grim -g \"$(slurp)\" \"$HOME/img/shortcut/shortcut-$(date +%Y-%m-%d_%H-%M-%S).png\""} } },
         .{
             .key = "XF86AudioRaiseVolume",
             .modifiers = .{},
@@ -150,11 +140,25 @@
             .modifiers = .{},
             .action = .{ .spawn = .{ "wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle" } },
         },
+
+        .{ .key = "Space", .modifiers = .{ .mod4 = true }, .action = .toggle_workspace_floating },
+        .{ .key = "F3", .modifiers = .{}, .action = .enter_overview },
+        .{ .key = "Space", .modifiers = .{ .mod4 = true, .mod1 = true }, .action = .enter_overview },
+        .{ .key = "Escape", .modifiers = .{ .mod4 = true }, .action = .overview_cancel },
     },
 
     .pointer_bindings = .{
         // Button: left, right, middle
         .{ .button = .left, .modifiers = .{ .mod4 = true }, .action = .move_window },
         .{ .button = .right, .modifiers = .{ .mod4 = true }, .action = .resize_window },
+    },
+    
+
+    .window_rules = .{
+        .{ .app_id = "footclient", .floating = true },
+        .{ .app_id = "swayimg", .floating = true },
+        .{ .title = "Picture-in-Picture", .floating = true },
+        .{ .title = "file-*", .floating = true },
+        .{ .app_id = "org.fcitx.fcitx5-config-qt", .floating = true },
     },
 }

@@ -58,10 +58,21 @@
         // Set focused window's width to 0.5 of the output's available width
         .{ .key = "BackSpace", .modifiers = .{ .mod4 = true }, .action = .{ .set_window_width = 0.5 } },
 
+        // Floating window scale (fraction of output size, expands/shrinks on all four sides)
+        .{ .key = "minus", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .adjust_floating_window_size = -0.1 } },
+        .{ .key = "equal", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .adjust_floating_window_size = 0.1 } },
+        .{ .key = "BackSpace", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .{ .set_floating_window_height = 0.5 } },
+
         .{ .key = "Left", .modifiers = .{ .mod4 = true }, .action = .focus_window_left },
         .{ .key = "Right", .modifiers = .{ .mod4 = true }, .action = .focus_window_right },
         .{ .key = "Left", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_left },
         .{ .key = "Right", .modifiers = .{ .mod4 = true, .shift = true }, .action = .move_window_right },
+
+        // Floating move (50px steps)
+        .{ .key = "Left", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_left },
+        .{ .key = "Right", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_right },
+        .{ .key = "Up", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_up },
+        .{ .key = "Down", .modifiers = .{ .mod4 = true, .ctrl = true }, .action = .move_floating_window_down },
 
         .{ .key = "v", .modifiers = .{ .mod4 = true }, .action = .toggle_workspace_floating },
 
