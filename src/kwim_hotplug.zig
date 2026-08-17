@@ -13,9 +13,13 @@ pub fn inputManagerListener(
     wm: *types.WindowManager,
 ) void {
     switch (event) {
-        .input_device => |data| {
+        .input_device => {
             triggerHotplug(wm);
-            data.id.destroy();
+            // Do NOT destroy this object. The compositor sends further init
+            // events (type/name/done) on it and may reuse its id for the next
+            // device; destroying it immediately makes the client's object map
+            // disagree with the server, which kills the connection with
+            // "unknown object" at startup on machines with many input devices.
         },
         else => {},
     }
@@ -27,9 +31,10 @@ pub fn libinputConfigListener(
     wm: *types.WindowManager,
 ) void {
     switch (event) {
-        .libinput_device => |data| {
+        .libinput_device => {
             triggerHotplug(wm);
-            data.id.destroy();
+            // See inputManagerListener: destroying immediately races the
+            // compositor's init events on this object.
         },
         else => {},
     }
@@ -41,9 +46,10 @@ pub fn xkbConfigListener(
     wm: *types.WindowManager,
 ) void {
     switch (event) {
-        .xkb_keyboard => |data| {
+        .xkb_keyboard => {
             triggerHotplug(wm);
-            data.id.destroy();
+            // See inputManagerListener: destroying immediately races the
+            // compositor's init events on this object.
         },
         else => {},
     }
