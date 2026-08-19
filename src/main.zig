@@ -325,6 +325,10 @@ fn manage(allocator: Allocator, io: Io, wm: *types.WindowManager) void {
                 // Refresh borders and focus every animation frame so focus changes
                 // that arrive while an animation is active are visible immediately.
                 layout.applyFocusAndBorders(wm, river_seat);
+                // Focus raising during an animation can put a focused tile above
+                // floating windows; restore the invariant on every animation
+                // frame, in the same render sequence, before commit.
+                layout.raiseFloatingWindows(wm);
             } else {
                 wm.status = .none;
             }

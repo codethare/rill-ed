@@ -229,6 +229,10 @@ pub fn applyBorders(
         const is_focused = idx == state.highlighted;
         layout.applyWindowBorder(window, is_focused, config);
         if (is_focused) {
+            // Deliberate relaxation of the floats-on-top invariant: in the
+            // overview grid windows do not overlap, so raising the highlighted
+            // window is only a UI affordance, never a covering. Normal stacking
+            // is restored when overview exits back to .layout.
             window.river_node.placeTop();
             river_seat.focusWindow(window.river_window);
         }

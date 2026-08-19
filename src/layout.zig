@@ -308,6 +308,10 @@ pub fn apply(
 
     applyFocusAndBorders(wm, river_seat);
 
+    // Focus raising in applyFocusAndBorders (including a focused tile raising
+    // above floats) is overridden here within the same transaction.
+    raiseFloatingWindows(wm);
+
     // When output focus moves to a different output (new output added, output
     // removed, or focus-output keybinding), warp the pointer to the focused
     // output's center. This matches the behavior of niri and hyprland and
@@ -328,6 +332,23 @@ pub fn apply(
 /// Set border colors and keyboard focus to match the current focused
 /// window/output. Safe to call every frame: redundant border and focus requests
 /// are skipped so IME clients are not disrupted.
+/// Raise every floating window above all tiled windows. river commits the
+/// render list atomically at render_finish and skips reorder work when the
+/// order is unchanged, so re-issuing on every manage pass is free.
+/// Iteration order matters: each placeTop lands the node on top, so floats
+/// later in window_list end up higher (window_list order = stacking order).
+/// Must run after any focus-based raising (applyFocusAndBorders) within the
+/// same sequence, so a focused tile can never cover a floating window.
+pub fn raiseFloatingWindows(wm: *types.WindowManager) void {
+    for (wm.output_list.items) |*output| {
+        for (&output.workspace_list) |*workspace| {
+            for (workspace.window_list.items) |*window| {
+                if (window.is_floating) window.river_node.placeTop();
+            }
+        }
+    }
+}
+
 pub fn colorToRiver(c: types.Color) struct { r: u32, g: u32, b: u32, a: u32 } {
     var r: f32 = @floatFromInt(c.r);
     var g: f32 = @floatFromInt(c.g);
