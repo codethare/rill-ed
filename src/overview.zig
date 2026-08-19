@@ -38,11 +38,12 @@ pub fn enter(
                         w.river_window.exitFullscreen();
                     }
                 }
-                for (src_ws.window_list.items, 0..) |_, win_idx| {
+                for (src_ws.window_list.items, 0..) |*w, win_idx| {
                     try origins.append(allocator, .{
                         .output_idx = out_idx,
                         .workspace_idx = 0,
                         .window_idx = win_idx,
+                        .floating = w.floating,
                     });
                 }
                 continue;
@@ -55,6 +56,7 @@ pub fn enter(
                     .output_idx = out_idx,
                     .workspace_idx = ws_idx,
                     .window_idx = window_idx,
+                    .floating = window.floating,
                 });
                 window_idx += 1;
                 try target_ws.window_list.append(allocator, window);
@@ -179,12 +181,17 @@ fn restoreWindows(
     while (i > 0) {
         i -= 1;
         const origin = state.origins.items[i];
-        if (origin.output_idx == state.output_idx and origin.workspace_idx == 0) continue;
+        if (origin.output_idx == state.output_idx and origin.workspace_idx == 0) {
+            // Window stays put; only its geometry was hijacked by the grid.
+            overview_ws.window_list.items[i].floating = origin.floating;
+            overview_ws.window_list.items[i].current = origin.floating;
+            continue;
+        }
 
         var moved_window = overview_ws.window_list.orderedRemove(i);
         const dst_output = &wm.output_list.items[origin.output_idx];
-        moved_window.floating = layout.centerRectangle(dst_output.non_exclusive, wm.getConfig());
-        moved_window.current = moved_window.floating;
+        moved_window.floating = origin.floating;
+        moved_window.current = origin.floating;
 
         const dst = &dst_output.workspace_list[origin.workspace_idx];
         const insert_at: usize = 0;

@@ -788,6 +788,10 @@ fn overviewKeyPressed(
             else => return,
         }
 
+        // The last grid row may be partial (4 windows at 3 columns fill
+        // slots 0..3 but the row/col math maps slot 4), so cap navigation
+        // at the real window count instead of the grid bounds.
+        if (next >= total) next = total - 1;
         if (next != cur) {
             state.highlighted = next;
             wm.status = .overview;

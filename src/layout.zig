@@ -404,9 +404,15 @@ pub fn applyFocusAndBorders(
 
         for (output.workspace_list, 0..) |workspace, workspace_idx| {
             for (workspace.window_list.items, 0..) |*window, window_idx| {
-                const is_focused = output_idx == foi and
-                    workspace_idx == output.focused_workspace_idx and
-                    window_idx == workspace.focused_window_idx;
+                // While overview is active the highlighted grid slot is the
+                // focused window; the workspace focused_window_idx is stale
+                // (pinned by overview.enter and never moved by navigation).
+                const is_focused = if (wm.overview_state) |ov|
+                    output_idx == ov.output_idx and workspace_idx == 0 and window_idx == ov.highlighted
+                else
+                    output_idx == foi and
+                        workspace_idx == output.focused_workspace_idx and
+                        window_idx == workspace.focused_window_idx;
 
                 applyWindowBorder(window, is_focused, config);
 
@@ -435,6 +441,12 @@ pub fn applyFocusAndBorders(
     if (wm.session_locked) return;
 
     const desired_focus: ?*river.WindowV1 = blk: {
+        if (wm.overview_state) |ov| {
+            const output = &wm.output_list.items[ov.output_idx];
+            const overview_ws = &output.workspace_list[0];
+            if (overview_ws.window_list.items.len == 0) break :blk null;
+            break :blk overview_ws.window_list.items[ov.highlighted].river_window;
+        }
         const output = &wm.output_list.items[foi];
         const workspace = &output.workspace_list[output.focused_workspace_idx];
         const fwi = workspace.focused_window_idx orelse break :blk null;

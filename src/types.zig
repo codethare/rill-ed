@@ -295,7 +295,8 @@ pub const Status = union(enum) {
 };
 
 pub const OverviewState = struct {
-    /// Maps each overview grid slot to its original (output_idx, workspace_idx, window_idx).
+    /// Maps each overview grid slot to its home (output/workspace/window index)
+    /// and the floating rect to restore on exit.
     origins: std.ArrayList(Origin),
     highlighted: usize,
     columns: usize,
@@ -306,6 +307,8 @@ pub const OverviewState = struct {
         output_idx: usize,
         workspace_idx: usize,
         window_idx: usize,
+        /// The window's floating rect before the overview grid overwrote it.
+        floating: Rectangle,
     };
 };
 
